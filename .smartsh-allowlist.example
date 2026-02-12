@@ -1,0 +1,8 @@
+# exact command match
+exact:go test ./...
+
+# prefix match
+prefix:npm run 
+
+# regex match
+re:^docker compose (up|build)$

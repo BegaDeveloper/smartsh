@@ -1,0 +1,26 @@
+{
+  "tools": [
+    {
+      "name": "smartsh_agent",
+      "description": "Execute instructions through smartsh in JSON agent mode.",
+      "command": "/Applications/smartsh/scripts/integrations/claude-smartsh.sh",
+      "args": [],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "instruction": { "type": "string" },
+          "cwd": { "type": "string" },
+          "dry_run": { "type": "boolean" },
+          "unsafe": { "type": "boolean" },
+          "allowlist_mode": {
+            "type": "string",
+            "enum": ["off", "warn", "enforce"]
+          },
+          "allowlist_file": { "type": "string" }
+        },
+        "required": ["instruction"]
+      },
+      "stdin_template": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+    }
+  ]
+}

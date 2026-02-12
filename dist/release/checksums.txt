@@ -1,0 +1,3 @@
+38b75370b245d6df7984bddd69cd0f53ef13959925308bb4f8a5c6954eef97a3  smartsh-darwin-amd64.tar.gz
+a2d4f4a5cfe22dca8bf88fb799a6d07cfeaf205293a894a415488e38804c575e  smartsh-darwin-arm64.tar.gz
+3464f174934b834fd2c339104d5c58fc9dd539c38d5652c7b20cd91c7b45bf23  smartsh-windows-amd64.zip

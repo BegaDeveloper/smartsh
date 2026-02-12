@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -eu
+
+if command -v smartsh >/dev/null 2>&1; then
+  exec smartsh "$@"
+fi
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+exec go run "$SCRIPT_DIR/cmd/smartsh" "$@"

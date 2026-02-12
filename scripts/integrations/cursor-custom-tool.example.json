@@ -1,0 +1,36 @@
+{
+  "name": "smartsh-agent",
+  "description": "Run terminal commands through smartsh with deterministic safety and JSON output.",
+  "command": "/Applications/smartsh/scripts/integrations/cursor-smartsh.sh",
+  "args": [],
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "instruction": {
+        "type": "string",
+        "description": "Natural-language instruction to execute."
+      },
+      "cwd": {
+        "type": "string",
+        "description": "Project working directory for command execution."
+      },
+      "dry_run": {
+        "type": "boolean",
+        "description": "Resolve/validate only; do not execute."
+      },
+      "unsafe": {
+        "type": "boolean",
+        "description": "Allow otherwise blocked risky commands."
+      },
+      "allowlist_mode": {
+        "type": "string",
+        "enum": ["off", "warn", "enforce"]
+      },
+      "allowlist_file": {
+        "type": "string"
+      }
+    },
+    "required": ["instruction"]
+  },
+  "stdinTemplate": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+}
