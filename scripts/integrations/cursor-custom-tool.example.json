@@ -6,9 +6,9 @@
   "inputSchema": {
     "type": "object",
     "properties": {
-      "instruction": {
+      "command": {
         "type": "string",
-        "description": "Natural-language instruction to execute."
+        "description": "Terminal command to execute."
       },
       "cwd": {
         "type": "string",
@@ -46,7 +46,7 @@
         "description": "Reuse a single external terminal window/tab for this session key."
       }
     },
-    "required": ["instruction"]
+    "required": ["command"]
   },
-  "stdinTemplate": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}"
+  "stdinTemplate": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}"
 }

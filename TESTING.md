@@ -24,7 +24,7 @@ What these tests validate:
 
 - summary parsing and classification,
 - output size/tail behavior for token control,
-- `summary_source` behavior (`deterministic` vs `ollama`),
+- `summary_source` behavior (`deterministic`),
 - MCP async polling behavior for long-running jobs.
 
 ## 2) Start and verify daemon
@@ -60,9 +60,7 @@ Use prompts that explicitly force smartsh MCP tool usage:
 - `status` (`completed`/`failed`/`blocked`/`running`)
 - `exit_code` (source of truth for pass/fail)
 - `summary` and `error_type`
-- `summary_source`:
-  - `deterministic` for successful runs,
-  - usually `ollama` for failed runs when Ollama is reachable.
+- `summary_source`: `deterministic`
 
 Token-control expectations:
 
@@ -91,8 +89,6 @@ curl -sS -X POST http://127.0.0.1:8787/run \
 ## 5) Troubleshooting checklist
 
 - If output format looks old, restart daemon (`smartshd`) and reload Cursor MCP server.
-- If `summary_source` is always `deterministic` on failures, verify Ollama is running:
-  - `curl -sS http://127.0.0.1:11434/api/tags`
 - If tool calls appear stuck/cancelled, use smaller `mcp_max_wait_sec` and poll via `job_id`.
 - If Cursor runs direct shell instead of MCP, enforce instruction:
   - `Use only smartsh-local_smartsh_run for command execution.`

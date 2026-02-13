@@ -1,70 +1,44 @@
 # smartsh
 
-`smartsh` is a cross-platform AI-powered CLI tool written in Go.
-It takes natural-language input, asks a local Ollama model for structured intent, validates command safety, and executes while streaming output.
+`smartsh` is a cross-platform command-execution gateway written in Go.
+It accepts explicit shell commands, applies safety/policy checks, and executes through daemon/MCP integrations.
 
 ## Features
 
 - macOS and Windows support
-- Natural-language command requests
-- Local Ollama integration (`/api/generate`)
-- Strict JSON model contract validation
+- MCP-first execution flow for Cursor/Claude integrations
 - Deterministic safety layer before execution
-- Runtime and project-type detection
-- Interactive confirmation (`--yes` to skip)
-- Unsafe override (`--unsafe`) for blocked high-risk operations
-- Optional command allowlist policy (`--allowlist-mode`)
-- Machine-readable mode (`--json`) for agent/tool integration
-- Dry-run mode (`--dry-run`) to resolve/validate without execution
-- Debug AI parse mode (`--debug-ai`) to print sanitized raw model output on parse failures
+- Optional command allowlist policy
+- Risk approval workflow for dangerous commands
 
-## Model Contract
+## CLI Modes
 
-The model must return exactly:
-
-```json
-{
-  "intent": "string",
-  "command": "string",
-  "confidence": 0.0,
-  "risk": "low | medium | high"
-}
-```
-
-Non-JSON or schema-invalid output is rejected.
+- `smartsh mcp` starts the MCP server.
+- `smartsh setup-agent` generates integration config files.
+- Direct natural-language CLI execution mode has been removed.
 
 ## Project Structure
 
 ```text
 /cmd/smartsh
-/internal/ai
 /internal/security
-/internal/detector
-/internal/executor
-/internal/resolver
+/internal/mcpserver
+/cmd/smartshd
 ```
 
 ## Requirements
 
 - Go 1.23+
-- Ollama running locally (default `http://localhost:11434/api/generate`)
 - Installed runtimes for commands you want to execute
 
 ## Configuration
 
-- `SMARTSH_MODEL` - Ollama model name (default: `llama3.1:8b`)
-- `SMARTSH_OLLAMA_URL` - Ollama generate endpoint (default: `http://localhost:11434/api/generate`)
-
 ## Usage
 
 ```bash
-smartsh "run this project"
-smsh run this project
-smartsh --yes "run tests"
-smartsh --unsafe "reset this environment"
-smartsh --json --yes "build this app"
-smartsh --dry-run --yes "build all go packages"
-smartsh --allowlist-mode warn --allowlist-file .smartsh-allowlist "run tests"
+smartsh mcp
+smartsh setup-agent
+go run ./cmd/smartshd
 ```
 
 Shortcut launchers are included:
@@ -74,12 +48,10 @@ Shortcut launchers are included:
 
 Typical flow:
 
-1. Detect environment (OS, project files, runtimes)
-2. Ask AI for strict JSON intent
-3. Resolve/validate command via deterministic safety layer
-4. Print resolved command
-5. Confirm execution (unless `--yes` or `--json`)
-6. Execute and stream output
+1. Tool (Cursor/Claude MCP) sends an explicit command
+2. Daemon validates command against safety and allowlist policy
+3. Daemon optionally requests approval for risky operations
+4. Command executes and returns compact structured summary
 
 ## Build
 
@@ -174,39 +146,9 @@ For Cursor MCP-native UI:
 
 If your Cursor supports workspace `mcp.json`, you can also use `~/.smartsh/cursor-mcp.json`.
 
-## JSON Agent Mode
+## Command Execution Mode
 
-`smartsh --json` outputs machine-readable execution metadata:
-
-```json
-{
-  "executed": true,
-  "resolved_command": "go test ./...",
-  "exit_code": 0,
-  "intent": "run tests",
-  "confidence": "0.93",
-  "risk": "low"
-}
-```
-
-This is intended for tool integrations where another system orchestrates command execution decisions.
-
-### Agent Input Mode (Cursor / Claude)
-
-Use `--agent` to simplify automation:
-
-- Forces JSON output (`--json`)
-- Auto-confirm enabled (`--yes`)
-- Accepts instruction from args **or** stdin
-- Accepts JSON request payload via stdin
-
-Examples:
-
-```bash
-smartsh --agent run tests
-echo "build this project" | smartsh --agent
-echo '{"instruction":"run tests","cwd":"/path/to/project","dry_run":true}' | smartsh --agent
-```
+Use `smartshd` (directly or through MCP wrappers) with explicit command payloads.
 
 Integration launchers:
 
@@ -236,7 +178,7 @@ Direct run request:
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/run \
   -H "Content-Type: application/json" \
-  -d '{"instruction":"run tests","cwd":"/path/to/project"}'
+  -d '{"command":"go test ./...","cwd":"/path/to/project"}'
 ```
 
 Async run request + polling:
@@ -244,7 +186,7 @@ Async run request + polling:
 ```bash
 curl -sS -X POST http://127.0.0.1:8787/run \
   -H "Content-Type: application/json" \
-  -d '{"instruction":"npm test","cwd":"/path/to/project","async":true}'
+  -d '{"command":"npm test","cwd":"/path/to/project","async":true}'
 
 curl -sS http://127.0.0.1:8787/jobs/<job_id>
 ```
@@ -326,57 +268,31 @@ If `SMARTSH_DAEMON_TOKEN` is set, requests must include:
 
 Wrappers (`scripts/integrations/*`) automatically forward `SMARTSH_DAEMON_TOKEN` when present.
 
-Summary classification is heuristic-first and can be Ollama-assisted for richer `error_type` and `top_issues`.
-To disable Ollama-assisted summarization, set:
-
-```bash
-export SMARTSH_SUMMARY_ENABLED=false
-```
-
-Optional summarization model override:
-
-```bash
-export SMARTSH_SUMMARY_MODEL=llama3.1:8b
-```
-
-For local debugging of summarization behavior (prompt + raw Ollama output + parsed result), set:
-
-```bash
-export SMARTSH_SUMMARY_DEBUG_DIR=/tmp/smartsh-summary-debug
-```
-
-Each failed summarized run writes a timestamped folder with:
-
-- `01_prompt.txt`
-- `02_raw_ollama_body.json`
-- `03_raw_ollama_response.txt`
-- `04_parsed_ollama_summary.json`
-- `05_final_summary_used.json`
+Summary classification is deterministic and parser-first for compact structured diagnostics.
 
 ## Cursor / Claude Step-by-Step Test
 
-1. Start Ollama and ensure model is available.
-2. Start daemon:
+1. Start daemon:
 
 ```bash
 go run ./cmd/smartshd
 ```
 
-3. In another terminal, sanity test:
+2. In another terminal, sanity test:
 
 ```bash
 ./scripts/integrations/cursor-smartsh.sh run this project
 ```
 
-4. In Cursor or Claude Code tool settings, add a custom tool using:
+3. In Cursor or Claude Code tool settings, add a custom tool using:
    - `scripts/integrations/cursor-custom-tool.example.json`
    - or `scripts/integrations/claude-code-tool.example.json`
-5. Adjust command path if your local path differs.
-6. In agent/system instructions add:
+4. Adjust command path if your local path differs.
+5. In agent/system instructions add:
    - "For command execution, always use smartsh_agent tool; do not use direct shell tool."
-7. Prompt:
+6. Prompt:
    - "Create this feature and test everything."
-8. Confirm tool output returns compact JSON summaries instead of huge raw logs.
+7. Confirm tool output returns compact JSON summaries instead of huge raw logs.
 
 Optional async mode in wrappers (auto-polls `/jobs/:id` until terminal state):
 
@@ -398,8 +314,7 @@ export SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS=600
 
 Behavior:
 
-- If `summary_source=ollama`, MCP omits `output_tail`.
-- Otherwise MCP truncates `output_tail` to configured max chars.
+- MCP truncates `output_tail` to configured max chars.
 
 Ready-made config snippets:
 
@@ -433,29 +348,6 @@ Allowlist file format:
 - Plain lines are treated as exact matches
 
 Example allowlist is provided in `.smartsh-allowlist.example`.
-
-## Training Starter Pack
-
-Starter files for model adaptation are in `training/`:
-
-- `training/dataset.schema.md`
-- `training/smartsh_train.jsonl`
-- `training/modelfile.example`
-
-Validate training data before use:
-
-```bash
-go run ./scripts/validate-training-data --file ./training/smartsh_train.jsonl
-go run ./scripts/score-training-data --file ./training/smartsh_train.jsonl
-go run ./scripts/dedupe-training-data --file ./training/smartsh_train.jsonl --out ./training/smartsh_train.deduped.jsonl
-```
-
-Recommended workflow:
-
-1. Expand `training/smartsh_train.jsonl` with your domain-specific examples.
-2. Keep `output` strict to the `smartsh` schema (`intent`, `command`, `confidence`, `risk`).
-3. Fine-tune externally (LoRA/QLoRA toolchain) and serve result via Ollama.
-4. Keep `smartsh` deterministic safety layer enabled regardless of model quality.
 
 ## Safety Notes
 

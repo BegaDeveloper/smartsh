@@ -2,27 +2,9 @@ $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
 $OutDir = if ($env:SMARTSH_SETUP_OUT_DIR) { $env:SMARTSH_SETUP_OUT_DIR } else { Join-Path $env:USERPROFILE ".smartsh" }
-$Model = if ($env:SMARTSH_MODEL) { $env:SMARTSH_MODEL } else { "llama3.1:8b" }
 $DaemonUrl = if ($env:SMARTSH_DAEMON_URL) { $env:SMARTSH_DAEMON_URL } else { "http://127.0.0.1:8787" }
 
 New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
-
-function Ensure-Ollama {
-    if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
-        throw "ollama command not found. Install Ollama first."
-    }
-    try {
-        Invoke-RestMethod -Uri "http://127.0.0.1:11434/api/tags" -Method Get -TimeoutSec 1 | Out-Null
-    } catch {
-        Start-Process -FilePath "ollama" -ArgumentList @("serve") -WindowStyle Hidden | Out-Null
-        Start-Sleep -Seconds 1
-    }
-    try {
-        & ollama pull $Model | Out-Null
-    } catch {
-        # best effort
-    }
-}
 
 function Ensure-Daemon {
     try {
@@ -58,7 +40,7 @@ function Write-CursorTool {
   "inputSchema": {
     "type": "object",
     "properties": {
-      "instruction": { "type": "string" },
+      "command": { "type": "string" },
       "cwd": { "type": "string" },
       "dry_run": { "type": "boolean" },
       "unsafe": { "type": "boolean" },
@@ -67,9 +49,9 @@ function Write-CursorTool {
       "allowlist_mode": { "type": "string", "enum": ["off", "warn", "enforce"] },
       "allowlist_file": { "type": "string" }
     },
-    "required": ["instruction"]
+    "required": ["command"]
   },
-  "stdinTemplate": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+  "stdinTemplate": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
 }
 "@
     Set-Content -Path $cursorPath -Value $json -Encoding UTF8
@@ -83,13 +65,13 @@ function Write-ClaudeTool {
   "tools": [
     {
       "name": "smartsh_agent",
-      "description": "Execute instructions through smartshd and return compact summaries.",
+      "description": "Execute terminal commands through smartshd and return compact summaries.",
       "command": "$commandPath",
       "args": [],
       "input_schema": {
         "type": "object",
         "properties": {
-          "instruction": { "type": "string" },
+          "command": { "type": "string" },
           "cwd": { "type": "string" },
           "dry_run": { "type": "boolean" },
           "unsafe": { "type": "boolean" },
@@ -98,9 +80,9 @@ function Write-ClaudeTool {
           "allowlist_mode": { "type": "string", "enum": ["off", "warn", "enforce"] },
           "allowlist_file": { "type": "string" }
         },
-        "required": ["instruction"]
+        "required": ["command"]
       },
-      "stdin_template": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+      "stdin_template": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
     }
   ]
 }
@@ -152,7 +134,6 @@ Prefer summarized tool output and avoid dumping full terminal logs.
 "@ | Set-Content -Path $promptPath -Encoding UTF8
 }
 
-Ensure-Ollama
 Ensure-Daemon
 Write-CursorTool
 Write-CursorMCP

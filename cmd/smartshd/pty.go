@@ -15,12 +15,11 @@ import (
 )
 
 type ptyCreateRequest struct {
-	Instruction string            `json:"instruction,omitempty"`
-	Command     string            `json:"command,omitempty"`
-	Cwd         string            `json:"cwd,omitempty"`
-	TimeoutSec  int               `json:"timeout_sec,omitempty"`
-	Unsafe      bool              `json:"unsafe,omitempty"`
-	Env         map[string]string `json:"env,omitempty"`
+	Command    string            `json:"command,omitempty"`
+	Cwd        string            `json:"cwd,omitempty"`
+	TimeoutSec int               `json:"timeout_sec,omitempty"`
+	Unsafe     bool              `json:"unsafe,omitempty"`
+	Env        map[string]string `json:"env,omitempty"`
 }
 
 type ptySession struct {
@@ -51,10 +50,7 @@ func (server *daemonServer) createPTYSession(ctx context.Context, requestPayload
 
 	command := strings.TrimSpace(requestPayload.Command)
 	if command == "" {
-		command = strings.TrimSpace(requestPayload.Instruction)
-	}
-	if command == "" {
-		return nil, 400, fmt.Errorf("command or instruction is required")
+		return nil, 400, fmt.Errorf("command is required")
 	}
 
 	_ = ctx

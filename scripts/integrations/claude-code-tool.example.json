@@ -2,13 +2,13 @@
   "tools": [
     {
       "name": "smartsh_agent",
-      "description": "Execute instructions through smartsh in JSON agent mode.",
+      "description": "Execute terminal commands through smartsh in JSON mode.",
       "command": "/Applications/smartsh/scripts/integrations/claude-smartsh.sh",
       "args": [],
       "input_schema": {
         "type": "object",
         "properties": {
-          "instruction": { "type": "string" },
+          "command": { "type": "string" },
           "cwd": { "type": "string" },
           "dry_run": { "type": "boolean" },
           "unsafe": { "type": "boolean" },
@@ -22,9 +22,9 @@
           "allowlist_file": { "type": "string" },
           "terminal_session_key": { "type": "string" }
         },
-        "required": ["instruction"]
+        "required": ["command"]
       },
-      "stdin_template": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}"
+      "stdin_template": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}"
     }
   ]
 }

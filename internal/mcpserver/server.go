@@ -175,11 +175,10 @@ func (server *mcpServer) handleRequest(request rpcRequest) rpcResponse {
 			"tools": []map[string]interface{}{
 				{
 					"name":        "smartsh_run",
-					"description": "Run terminal command/instruction through local smartshd and return compact summary JSON.",
+					"description": "Run terminal command through local smartshd and return compact summary JSON.",
 					"inputSchema": map[string]interface{}{
 						"type": "object",
 						"properties": map[string]interface{}{
-							"instruction":            map[string]string{"type": "string"},
 							"command":                map[string]string{"type": "string"},
 							"cwd":                    map[string]string{"type": "string"},
 							"dry_run":                map[string]string{"type": "boolean"},
@@ -266,7 +265,7 @@ func (server *mcpServer) callSmartshRun(arguments map[string]interface{}) (daemo
 	requestBody := map[string]interface{}{
 		"async": true,
 	}
-	for _, key := range []string{"instruction", "command", "cwd", "dry_run", "unsafe", "require_approval", "allowlist_mode", "allowlist_file", "open_external_terminal", "terminal_app", "terminal_session_key"} {
+	for _, key := range []string{"command", "cwd", "dry_run", "unsafe", "require_approval", "allowlist_mode", "allowlist_file", "open_external_terminal", "terminal_app", "terminal_session_key"} {
 		if value, exists := arguments[key]; exists {
 			requestBody[key] = value
 		}
@@ -368,12 +367,6 @@ func (server *mcpServer) handleApprovalShortcut(arguments map[string]interface{}
 	approvalID := strings.TrimSpace(toString(arguments["approval_id"]))
 	approvalResponse := strings.TrimSpace(strings.ToLower(toString(arguments["approval_response"])))
 	if approvalResponse == "" {
-		instruction := strings.TrimSpace(strings.ToLower(toString(arguments["instruction"])))
-		if instruction == "y" || instruction == "yes" || instruction == "n" || instruction == "no" {
-			approvalResponse = instruction
-		}
-	}
-	if approvalResponse == "" {
 		return daemonRunResponse{}, false, nil
 	}
 	if approvalID == "" {
@@ -454,10 +447,6 @@ func (server *mcpServer) decorateApprovalPrompt(response *daemonRunResponse) {
 
 func (server *mcpServer) compactRunResponse(response *daemonRunResponse) {
 	if response == nil || !mcpCompactOutputEnabled() {
-		return
-	}
-	if strings.EqualFold(strings.TrimSpace(response.SummarySource), "ollama") {
-		response.OutputTail = ""
 		return
 	}
 	maxChars := mcpMaxOutputTailChars()

@@ -43,9 +43,9 @@ import json
 import os
 import sys
 
-instruction = " ".join(sys.argv[1:]).strip()
+command = " ".join(sys.argv[1:]).strip()
 payload = {
-    "instruction": instruction,
+    "command": command,
     "cwd": os.getcwd(),
     "async": os.getenv("SMARTSH_ASYNC", "0") == "1",
 }
@@ -108,7 +108,7 @@ if [ "$#" -gt 0 ]; then
 fi
 
 if [ -t 0 ]; then
-  echo "Usage: claude-smartsh.sh <instruction> OR pipe JSON/plain instruction to stdin" >&2
+  echo "Usage: claude-smartsh.sh <command> OR pipe JSON/plain command to stdin" >&2
   exit 2
 fi
 

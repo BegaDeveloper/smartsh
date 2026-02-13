@@ -3,7 +3,6 @@ package main
 import "time"
 
 type runRequest struct {
-	Instruction          string            `json:"instruction,omitempty"`
 	Command              string            `json:"command,omitempty"`
 	Cwd                  string            `json:"cwd,omitempty"`
 	OpenExternalTerminal bool              `json:"open_external_terminal,omitempty"`

@@ -3,7 +3,6 @@ set -eu
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 OUT_DIR="${SMARTSH_SETUP_OUT_DIR:-$HOME/.smartsh}"
-MODEL="${SMARTSH_MODEL:-llama3.1:8b}"
 DAEMON_URL="${SMARTSH_DAEMON_URL:-http://127.0.0.1:8787}"
 
 mkdir -p "$OUT_DIR"
@@ -17,15 +16,6 @@ require_cmd() {
     echo "Missing required command: $1"
     exit 1
   fi
-}
-
-ensure_ollama() {
-  require_cmd ollama
-  if ! curl -sS --max-time 1 http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
-    nohup ollama serve >/tmp/ollama.log 2>&1 &
-    sleep 1
-  fi
-  ollama pull "$MODEL" >/dev/null 2>&1 || true
 }
 
 ensure_daemon() {
@@ -60,7 +50,7 @@ write_cursor_tool() {
   "inputSchema": {
     "type": "object",
     "properties": {
-      "instruction": { "type": "string" },
+      "command": { "type": "string" },
       "cwd": { "type": "string" },
       "dry_run": { "type": "boolean" },
       "unsafe": { "type": "boolean" },
@@ -69,9 +59,9 @@ write_cursor_tool() {
       "allowlist_mode": { "type": "string", "enum": ["off", "warn", "enforce"] },
       "allowlist_file": { "type": "string" }
     },
-    "required": ["instruction"]
+    "required": ["command"]
   },
-  "stdinTemplate": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+  "stdinTemplate": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
 }
 EOF
 }
@@ -83,13 +73,13 @@ write_claude_tool() {
   "tools": [
     {
       "name": "smartsh_agent",
-      "description": "Execute instructions through smartshd and return compact summaries.",
+      "description": "Execute terminal commands through smartshd and return compact summaries.",
       "command": "$ROOT_DIR/scripts/integrations/claude-smartsh.sh",
       "args": [],
       "input_schema": {
         "type": "object",
         "properties": {
-          "instruction": { "type": "string" },
+          "command": { "type": "string" },
           "cwd": { "type": "string" },
           "dry_run": { "type": "boolean" },
           "unsafe": { "type": "boolean" },
@@ -98,9 +88,9 @@ write_claude_tool() {
           "allowlist_mode": { "type": "string", "enum": ["off", "warn", "enforce"] },
           "allowlist_file": { "type": "string" }
         },
-        "required": ["instruction"]
+        "required": ["command"]
       },
-      "stdin_template": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+      "stdin_template": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
     }
   ]
 }
@@ -152,7 +142,6 @@ EOF
 main() {
   require_cmd curl
   require_cmd go
-  ensure_ollama
   ensure_daemon
   write_cursor_tool
   write_cursor_mcp

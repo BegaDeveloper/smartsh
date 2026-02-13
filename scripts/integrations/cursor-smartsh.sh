@@ -56,9 +56,9 @@ def looks_risky(text: str) -> bool:
             return True
     return False
 
-instruction = " ".join(sys.argv[1:]).strip()
+command = " ".join(sys.argv[1:]).strip()
 payload = {
-    "instruction": instruction,
+    "command": command,
     "cwd": os.getcwd(),
     "async": os.getenv("SMARTSH_ASYNC", "0") == "1",
     "open_external_terminal": os.getenv("SMARTSH_OPEN_EXTERNAL_TERMINAL", "1").strip().lower() in ("1", "true", "yes", "on"),
@@ -72,7 +72,7 @@ if timeout_sec and timeout_sec.isdigit() and int(timeout_sec) > 0:
 terminal_app = os.getenv("SMARTSH_TERMINAL_APP", "").strip()
 if terminal_app:
     payload["terminal_app"] = terminal_app
-if os.getenv("SMARTSH_RISKY_DRY_RUN_FIRST", "1").strip().lower() in ("1", "true", "yes", "on") and looks_risky(instruction):
+if os.getenv("SMARTSH_RISKY_DRY_RUN_FIRST", "1").strip().lower() in ("1", "true", "yes", "on") and looks_risky(command):
     payload["dry_run"] = True
 print(json.dumps(payload))
 PY
@@ -120,8 +120,8 @@ if terminal_app and "terminal_app" not in parsed:
     parsed["terminal_app"] = terminal_app
 
 if "dry_run" not in parsed and os.getenv("SMARTSH_RISKY_DRY_RUN_FIRST", "1").strip().lower() in ("1", "true", "yes", "on"):
-    instruction = str(parsed.get("instruction", "")).strip()
-    if instruction and looks_risky(instruction):
+    command = str(parsed.get("command", "")).strip()
+    if command and looks_risky(command):
         parsed["dry_run"] = True
 
 print(json.dumps(parsed))
@@ -180,7 +180,7 @@ if [ "$#" -gt 0 ]; then
 fi
 
 if [ -t 0 ]; then
-  echo "Usage: cursor-smartsh.sh <instruction> OR pipe JSON/plain instruction to stdin" >&2
+  echo "Usage: cursor-smartsh.sh <command> OR pipe JSON/plain command to stdin" >&2
   exit 2
 fi
 

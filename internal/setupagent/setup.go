@@ -46,16 +46,11 @@ func Run(out io.Writer) error {
 		return fmt.Errorf("create output directory failed: %w", err)
 	}
 
-	model := strings.TrimSpace(os.Getenv("SMARTSH_MODEL"))
-	if model == "" {
-		model = "llama3.1:8b"
-	}
 	daemonURL := strings.TrimSpace(os.Getenv("SMARTSH_DAEMON_URL"))
 	if daemonURL == "" {
 		daemonURL = "http://127.0.0.1:8787"
 	}
 
-	ensureOllama(model)
 	if err := ensureDaemon(daemonURL); err != nil {
 		return err
 	}
@@ -105,19 +100,6 @@ func defaultOutputDir() (string, error) {
 		return "", fmt.Errorf("resolve home directory failed: %w", err)
 	}
 	return filepath.Join(homeDir, ".smartsh"), nil
-}
-
-func ensureOllama(model string) {
-	if _, err := exec.LookPath("ollama"); err != nil {
-		return
-	}
-	if isHTTPReady("http://127.0.0.1:11434/api/tags", 1*time.Second) {
-		_ = runBestEffort(exec.Command("ollama", "pull", model))
-		return
-	}
-	_ = startDetached("ollama", "serve")
-	time.Sleep(1 * time.Second)
-	_ = runBestEffort(exec.Command("ollama", "pull", model))
 }
 
 func ensureDaemon(daemonURL string) error {
@@ -225,7 +207,7 @@ func writeCursorTool(path string, command string) error {
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"instruction":          map[string]any{"type": "string"},
+				"command":              map[string]any{"type": "string"},
 				"cwd":                  map[string]any{"type": "string"},
 				"dry_run":              map[string]any{"type": "boolean"},
 				"unsafe":               map[string]any{"type": "boolean"},
@@ -236,9 +218,9 @@ func writeCursorTool(path string, command string) error {
 				"allowlist_file":       map[string]any{"type": "string"},
 				"terminal_session_key": map[string]any{"type": "string"},
 			},
-			"required": []string{"instruction"},
+			"required": []string{"command"},
 		},
-		StdinTemplate: "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}",
+		StdinTemplate: "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}",
 	}
 	return writeJSONFile(path, config)
 }
@@ -248,13 +230,13 @@ func writeClaudeTool(path string, command string) error {
 		Tools: []map[string]any{
 			{
 				"name":        "smartsh_agent",
-				"description": "Execute instructions through smartshd and return compact summaries.",
+				"description": "Execute terminal commands through smartshd and return compact summaries.",
 				"command":     command,
 				"args":        []string{},
 				"input_schema": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"instruction":          map[string]any{"type": "string"},
+						"command":              map[string]any{"type": "string"},
 						"cwd":                  map[string]any{"type": "string"},
 						"dry_run":              map[string]any{"type": "boolean"},
 						"unsafe":               map[string]any{"type": "boolean"},
@@ -265,9 +247,9 @@ func writeClaudeTool(path string, command string) error {
 						"allowlist_file":       map[string]any{"type": "string"},
 						"terminal_session_key": map[string]any{"type": "string"},
 					},
-					"required": []string{"instruction"},
+					"required": []string{"command"},
 				},
-				"stdin_template": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}",
+				"stdin_template": "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}",
 			},
 		},
 	}
@@ -361,10 +343,4 @@ func startDetachedCommand(command *exec.Cmd) error {
 	command.Stdout = logFile
 	command.Stderr = logFile
 	return command.Start()
-}
-
-func runBestEffort(command *exec.Cmd) error {
-	command.Stdout = io.Discard
-	command.Stderr = io.Discard
-	return command.Run()
 }

@@ -96,13 +96,13 @@ function Invoke-RunAndPoll {
     return $response
 }
 
-function Test-RiskyInstruction {
+function Test-RiskyCommand {
     param(
-        [string]$Instruction
+        [string]$Command
     )
-    $normalizedInstruction = $Instruction.ToLowerInvariant()
+    $normalizedCommand = $Command.ToLowerInvariant()
     foreach ($token in @("delete", "remove", "wipe", "reset", "prune", "drop", "destroy")) {
-        if ($normalizedInstruction.Contains($token)) {
+        if ($normalizedCommand.Contains($token)) {
             return $true
         }
     }
@@ -114,7 +114,7 @@ Ensure-Daemon -DaemonUrl $daemonUrl
 
 if ($args.Count -gt 0) {
     $payload = @{
-        instruction = ($args -join " ")
+        command = ($args -join " ")
         cwd = (Get-Location).Path
         async = $asyncEnabled
         open_external_terminal = $openExternalTerminal
@@ -133,8 +133,8 @@ if ($args.Count -gt 0) {
         $payload = $payloadObject | ConvertTo-Json -Compress
     }
     if ($riskyDryRunFirst) {
-        $instructionText = ($args -join " ")
-        if (Test-RiskyInstruction -Instruction $instructionText) {
+        $commandText = ($args -join " ")
+        if (Test-RiskyCommand -Command $commandText) {
             $payloadObject = $payload | ConvertFrom-Json
             $payloadObject | Add-Member -NotePropertyName dry_run -NotePropertyValue $true -Force
             $payload = $payloadObject | ConvertTo-Json -Compress
@@ -146,7 +146,7 @@ if ($args.Count -gt 0) {
 }
 
 if ($Host.Name -match "ConsoleHost" -and [Console]::IsInputRedirected -eq $false) {
-    Write-Error "Usage: cursor-smartsh.ps1 <instruction> OR pipe JSON/plain instruction to stdin"
+    Write-Error "Usage: cursor-smartsh.ps1 <command> OR pipe JSON/plain command to stdin"
     exit 2
 }
 
@@ -183,8 +183,8 @@ if ($trimmedPayload.StartsWith("{")) {
     if ($timeoutSec -gt 0 -and $null -eq $payloadObject.timeout_sec) {
         $payloadObject | Add-Member -NotePropertyName timeout_sec -NotePropertyValue $timeoutSec -Force
     }
-    if ($null -eq $payloadObject.dry_run -and $riskyDryRunFirst -and $payloadObject.instruction) {
-        if (Test-RiskyInstruction -Instruction ([string]$payloadObject.instruction)) {
+    if ($null -eq $payloadObject.dry_run -and $riskyDryRunFirst -and $payloadObject.command) {
+        if (Test-RiskyCommand -Command ([string]$payloadObject.command)) {
             $payloadObject | Add-Member -NotePropertyName dry_run -NotePropertyValue $true -Force
         }
     }
@@ -195,7 +195,7 @@ if ($trimmedPayload.StartsWith("{")) {
 }
 
 $payload = @{
-    instruction = $trimmedPayload
+    command = $trimmedPayload
     cwd = (Get-Location).Path
     async = $asyncEnabled
     open_external_terminal = $openExternalTerminal
@@ -213,7 +213,7 @@ if ($timeoutSec -gt 0) {
     $payloadObject | Add-Member -NotePropertyName timeout_sec -NotePropertyValue $timeoutSec -Force
     $payload = $payloadObject | ConvertTo-Json -Compress
 }
-if ($riskyDryRunFirst -and (Test-RiskyInstruction -Instruction $trimmedPayload)) {
+if ($riskyDryRunFirst -and (Test-RiskyCommand -Command $trimmedPayload)) {
     $payloadObject = $payload | ConvertFrom-Json
     $payloadObject | Add-Member -NotePropertyName dry_run -NotePropertyValue $true -Force
     $payload = $payloadObject | ConvertTo-Json -Compress

@@ -17,9 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/BegaDeveloper/smartsh/internal/ai"
-	"github.com/BegaDeveloper/smartsh/internal/detector"
-	"github.com/BegaDeveloper/smartsh/internal/resolver"
 	"github.com/BegaDeveloper/smartsh/internal/security"
 )
 
@@ -373,11 +370,6 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 		return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: cwdError.Error()}
 	}
 
-	environment, detectionError := server.detectEnvironmentAt(cwd)
-	if detectionError != nil {
-		return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: fmt.Sprintf("environment detection failed: %v", detectionError)}
-	}
-
 	allowlistMode := strings.TrimSpace(runRequestPayload.AllowlistMode)
 	if allowlistMode == "" {
 		allowlistMode = string(security.AllowlistModeOff)
@@ -403,26 +395,7 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 	resolvedCommand := strings.TrimSpace(runRequestPayload.Command)
 	resolvedRisk := "low"
 	if resolvedCommand == "" {
-		instruction := strings.TrimSpace(runRequestPayload.Instruction)
-		if instruction == "" {
-			return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: "instruction or command is required"}
-		}
-
-		aiResponse, hasDeterministicResponse := resolver.ResolveDeterministicIntent(instruction, environment)
-		if !hasDeterministicResponse {
-			aiClient := ai.NewClientFromEnv()
-			var aiError error
-			aiResponse, aiError = aiClient.GenerateIntent(ctx, instruction, environment)
-			if aiError != nil {
-				return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: fmt.Sprintf("ai resolution failed: %v", aiError)}
-			}
-		}
-		resolvedCommand = resolver.ResolveCommand(aiResponse, environment)
-		resolvedRisk = aiResponse.Risk
-	}
-	resolvedCommand = resolver.NormalizeCommand(resolvedCommand, environment)
-	if resolvedCommand == "" {
-		return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: "unable to resolve a command from input"}
+		return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: "command is required"}
 	}
 
 	commandAssessment, assessmentError := security.AssessCommand(resolvedCommand, strings.ToLower(resolvedRisk), runRequestPayload.Unsafe)
@@ -581,14 +554,6 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 		exitCode, combinedOutput, executionError = runCommandWithCapture(executionContext, resolvedCommand, cwd, isolation, env)
 	}
 	deterministic := deterministicSummary(resolvedCommand, exitCode, combinedOutput, executionError)
-	summarySource := "deterministic"
-	// Keep successful runs deterministic to avoid AI hallucinated failures.
-	if exitCode != 0 || executionError != nil {
-		if ollamaSummary, ok := server.tryOllamaSummary(executionContext, resolvedCommand, combinedOutput, deterministic); ok {
-			deterministic = ollamaSummary
-			summarySource = "ollama"
-		}
-	}
 
 	response := runResponse{
 		MustUseSmartsh:  true,
@@ -597,7 +562,7 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 		ResolvedCommand: resolvedCommand,
 		ExitCode:        exitCode,
 		Summary:         deterministic.Summary,
-		SummarySource:   summarySource,
+		SummarySource:   "deterministic",
 		ErrorType:       deterministic.ErrorType,
 		PrimaryError:    deterministic.PrimaryError,
 		NextAction:      deterministic.NextAction,
@@ -622,7 +587,6 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 func (server *daemonServer) executeApprovalNow(ctx context.Context, approval commandApproval) runResponse {
 	approvedRequest := approval.Request
 	approvedRequest.Command = approval.ResolvedCommand
-	approvedRequest.Instruction = ""
 	approvedRequest.RequireApproval = false
 	approvedRequest.Unsafe = true
 	response := server.executeRequest(ctx, approvedRequest, approval.JobID)
@@ -815,20 +779,6 @@ func (server *daemonServer) handleMetrics(writer http.ResponseWriter, request *h
 	}
 	writer.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	_, _ = writer.Write([]byte(server.metrics.renderPrometheus()))
-}
-
-func (server *daemonServer) detectEnvironmentAt(cwd string) (detector.Environment, error) {
-	server.cwdMutex.Lock()
-	defer server.cwdMutex.Unlock()
-	originalWorkingDirectory, getwdError := os.Getwd()
-	if getwdError != nil {
-		return detector.Environment{}, fmt.Errorf("getwd failed: %w", getwdError)
-	}
-	if chdirError := os.Chdir(cwd); chdirError != nil {
-		return detector.Environment{}, fmt.Errorf("failed to change directory: %w", chdirError)
-	}
-	defer os.Chdir(originalWorkingDirectory)
-	return detector.DetectEnvironment()
 }
 
 func runCommandWithCapture(ctx context.Context, command string, cwd string, isolation isolationOptions, env []string) (int, string, error) {
@@ -1084,4 +1034,27 @@ func max(a int, b int) int {
 		return a
 	}
 	return b
+}
+
+func extractRiskTargets(command string, cwd string) []string {
+	targets := make([]string, 0, 3)
+	trimmedCommand := strings.TrimSpace(command)
+	if trimmedCommand == "" {
+		return []string{cwd}
+	}
+
+	for _, token := range strings.Fields(trimmedCommand) {
+		candidate := strings.TrimSpace(token)
+		if candidate == "" || strings.HasPrefix(candidate, "-") {
+			continue
+		}
+		if strings.HasPrefix(candidate, "/") || strings.HasPrefix(candidate, "./") || strings.HasPrefix(candidate, "../") {
+			targets = append(targets, candidate)
+		}
+	}
+
+	if len(targets) == 0 {
+		targets = append(targets, cwd)
+	}
+	return targets
 }

@@ -83,7 +83,7 @@ Ensure-Daemon -DaemonUrl $daemonUrl
 
 if ($args.Count -gt 0) {
     $payload = @{
-        instruction = ($args -join " ")
+        command = ($args -join " ")
         cwd = (Get-Location).Path
         async = $asyncEnabled
     } | ConvertTo-Json -Compress
@@ -98,7 +98,7 @@ if ($args.Count -gt 0) {
 }
 
 if ($Host.Name -match "ConsoleHost" -and [Console]::IsInputRedirected -eq $false) {
-    Write-Error "Usage: claude-smartsh.ps1 <instruction> OR pipe JSON/plain instruction to stdin"
+    Write-Error "Usage: claude-smartsh.ps1 <command> OR pipe JSON/plain command to stdin"
     exit 2
 }
 
@@ -116,7 +116,7 @@ if ($trimmedPayload.StartsWith("{")) {
 }
 
 $payload = @{
-    instruction = $trimmedPayload
+    command = $trimmedPayload
     cwd = (Get-Location).Path
     async = $asyncEnabled
 } | ConvertTo-Json -Compress

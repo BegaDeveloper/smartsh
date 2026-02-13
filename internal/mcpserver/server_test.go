@@ -88,43 +88,6 @@ func TestCallSmartshRunReturnsCompletedJob(t *testing.T) {
 	}
 }
 
-func TestCallSmartshRunCompactsOutputTailWhenOllamaSummaryUsed(t *testing.T) {
-	mockDaemon := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/health":
-			writer.WriteHeader(http.StatusOK)
-			_, _ = writer.Write([]byte(`{"ok":true}`))
-		case "/run":
-			_ = json.NewEncoder(writer).Encode(map[string]any{
-				"must_use_smartsh": true,
-				"status":           "failed",
-				"executed":         true,
-				"exit_code":        1,
-				"summary_source":   "ollama",
-				"output_tail":      "very long output tail",
-			})
-		default:
-			http.NotFound(writer, request)
-		}
-	}))
-	defer mockDaemon.Close()
-
-	server := &mcpServer{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
-		daemonURL:  mockDaemon.URL,
-	}
-	response, err := server.callSmartshRun(map[string]interface{}{
-		"command": "false",
-		"cwd":     "/Applications/smartsh",
-	})
-	if err != nil {
-		t.Fatalf("callSmartshRun returned error: %v", err)
-	}
-	if response.OutputTail != "" {
-		t.Fatalf("expected output tail to be removed for ollama summary, got %q", response.OutputTail)
-	}
-}
-
 func TestCallSmartshRunCompactsDeterministicOutputTail(t *testing.T) {
 	longTail := ""
 	for index := 0; index < 1500; index++ {
@@ -349,8 +312,8 @@ func TestCallSmartshRunNeedsApprovalPrompt(t *testing.T) {
 		daemonURL:  mockDaemon.URL,
 	}
 	response, err := server.callSmartshRun(map[string]interface{}{
-		"instruction": "delete node_modules",
-		"cwd":         "/Applications/smartsh",
+		"command": "rm -rf node_modules",
+		"cwd":     "/Applications/smartsh",
 	})
 	if err != nil {
 		t.Fatalf("callSmartshRun returned error: %v", err)
@@ -401,15 +364,15 @@ func TestCallSmartshRunApprovalYesShortcutUsesLastApprovalID(t *testing.T) {
 		daemonURL:  mockDaemon.URL,
 	}
 	_, err := server.callSmartshRun(map[string]interface{}{
-		"instruction": "delete node_modules",
-		"cwd":         "/Applications/smartsh",
+		"command": "rm -rf node_modules",
+		"cwd":     "/Applications/smartsh",
 	})
 	if err != nil {
 		t.Fatalf("first callSmartshRun returned error: %v", err)
 	}
 
 	approvedResponse, approveError := server.callSmartshRun(map[string]interface{}{
-		"instruction": "y",
+		"approval_response": "y",
 	})
 	if approveError != nil {
 		t.Fatalf("approval shortcut returned error: %v", approveError)
