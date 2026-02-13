@@ -1,246 +1,208 @@
+<div align="center">
+
 # smartsh
 
-`smartsh` is a cross-platform command-execution gateway written in Go.
-It accepts explicit shell commands, applies safety/policy checks, and executes through daemon/MCP integrations.
+**Safe, compact command execution for AI coding agents.**
 
-## Features
+[![GitHub release](https://img.shields.io/github/v/release/BegaDeveloper/smartsh?style=flat-square&color=blue)](https://github.com/BegaDeveloper/smartsh/releases)
+[![Go version](https://img.shields.io/badge/Go-1.23%2B-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![License](https://img.shields.io/github/license/BegaDeveloper/smartsh?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=flat-square)]()
 
-- macOS and Windows support
-- MCP-first execution flow for Cursor/Claude integrations
-- Deterministic safety layer before execution
-- Optional command allowlist policy
-- Risk approval workflow for dangerous commands
+MCP server + local daemon that gives **Cursor** and **Claude Code** a safe, token-efficient way to run shell commands.
 
-## CLI Modes
+</div>
 
-- `smartsh mcp` starts the MCP server.
-- `smartsh setup-agent` generates integration config files.
-- Direct natural-language CLI execution mode has been removed.
+---
 
-## Project Structure
+## Why smartsh?
 
-```text
-/cmd/smartsh
-/internal/security
-/internal/mcpserver
-/cmd/smartshd
-```
+When AI agents run terminal commands, they dump **huge raw logs** into context — burning tokens and confusing the model.
 
-## Requirements
+**smartsh** fixes this:
 
-- Go 1.23+
-- Installed runtimes for commands you want to execute
+- Runs commands through a local daemon (`smartshd`)
+- Returns **compact structured JSON** instead of raw output
+- Applies **safety checks** before execution (blocks dangerous commands)
+- Supports **risk approval workflows** for destructive operations
+- Truncates output automatically for **massive token savings**
 
-## Configuration
+---
 
-## Usage
+## Quick Install
+
+### macOS / Linux (one command)
 
 ```bash
-smartsh mcp
-smartsh setup-agent
-go run ./cmd/smartshd
+curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh \
+  | SMARTSH_COMPONENTS="smartsh smartshd" sh \
+  && smartsh setup-agent
 ```
 
-Shortcut launchers are included:
+> Auto-detects your OS and CPU. Downloads, verifies checksum, installs, and generates config files.
 
-- `./smsh` (Unix/macOS)
-- `./smsh.ps1` (PowerShell)
+### Windows (PowerShell)
 
-Typical flow:
-
-1. Tool (Cursor/Claude MCP) sends an explicit command
-2. Daemon validates command against safety and allowlist policy
-3. Daemon optionally requests approval for risky operations
-4. Command executes and returns compact structured summary
-
-## Build
-
-### Local
-
-```bash
-go build -o smartsh ./cmd/smartsh
+```powershell
+iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex
+smartsh.exe setup-agent
 ```
 
-### Install via Go (developer-friendly)
+### Install via Go
 
 ```bash
 go install github.com/BegaDeveloper/smartsh/cmd/smartsh@latest
 go install github.com/BegaDeveloper/smartsh/cmd/smartshd@latest
+smartsh setup-agent
 ```
 
-### Cross-platform
+### Manual download
 
-Unix/macOS:
+Grab the right archive from [**Releases**](https://github.com/BegaDeveloper/smartsh/releases):
 
-```bash
-./scripts/build.sh
-```
+| Platform | File |
+|---|---|
+| macOS Apple Silicon (M1/M2/M3) | `smartsh_darwin_arm64.tar.gz` |
+| macOS Intel | `smartsh_darwin_amd64.tar.gz` |
+| Linux x64 | `smartsh_linux_amd64.tar.gz` |
+| Linux arm64 | `smartsh_linux_arm64.tar.gz` |
+| Windows x64 | `smartsh_windows_amd64.zip` |
 
-Windows PowerShell:
+---
 
-```powershell
-.\scripts\build.ps1
-```
+## Setup with Cursor
 
-Artifacts are produced under `dist/`.
-Release archives and checksums are under `dist/release/`.
-
-## Install Examples
-
-Unix/macOS:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh | sh
-```
-
-Windows PowerShell:
-
-```powershell
-iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex
-```
-
-Example scripts are in `scripts/install.sh` and `scripts/install.ps1`.
-
-Optional installer configuration:
-
-- `SMARTSH_VERSION`: `latest` (default) or a tag like `v1.2.3`
-- `SMARTSH_REPO`: GitHub repo in the form `owner/name` (default: `BegaDeveloper/smartsh`)
-- `SMARTSH_INSTALL_DIR`: destination directory (default: `/usr/local/bin` on Unix/macOS)
-- `SMARTSH_COMPONENTS`: space/comma separated list (`smartsh` (default) or `smartsh smartshd`)
-
-## Quick Setup (Recommended)
-
-Use one command to bootstrap local agent setup (Ollama check, daemon start, and ready-to-import tool JSON files):
-
-macOS/Linux:
+After install, run:
 
 ```bash
 smartsh setup-agent
 ```
 
-Windows PowerShell:
+This generates ready-to-use config files in `~/.smartsh/`:
 
-```powershell
-smartsh.exe setup-agent
-```
+| File | Purpose |
+|---|---|
+| `cursor-smartsh-mcp.json` | MCP server config for Cursor |
+| `cursor-mcp.json` | Workspace `mcp.json` format |
+| `claude-smartsh-tool.json` | Claude Code tool config |
+| `agent-instructions.txt` | Paste into Cursor rules |
 
-Script alternatives are still available:
+### Connect to Cursor
 
-- `./scripts/setup-agent.sh`
-- `.\scripts\setup-agent.ps1`
-
-Generated outputs:
-
-- `~/.smartsh/cursor-smartsh-tool.json`
-- `~/.smartsh/cursor-smartsh-mcp.json`
-- `~/.smartsh/cursor-mcp.json`
-- `~/.smartsh/claude-smartsh-tool.json`
-- `~/.smartsh/agent-instructions.txt`
-
-For Cursor MCP-native UI:
-
-1. Open `Tools & MCP`
-2. Click `New MCP Server`
+1. Open **Cursor** → **Settings** → **Tools & MCP**
+2. Click **New MCP Server**
 3. Use values from `~/.smartsh/cursor-smartsh-mcp.json`
-4. Paste `~/.smartsh/agent-instructions.txt` into Rules and Commands
+4. Paste `~/.smartsh/agent-instructions.txt` into **Rules**
 
-If your Cursor supports workspace `mcp.json`, you can also use `~/.smartsh/cursor-mcp.json`.
+**Or** drop `~/.smartsh/cursor-mcp.json` into your project as `.cursor/mcp.json`:
 
-## Command Execution Mode
-
-Use `smartshd` (directly or through MCP wrappers) with explicit command payloads.
-
-Integration launchers:
-
-- `scripts/integrations/cursor-smartsh.sh`
-- `scripts/integrations/claude-smartsh.sh`
-- `scripts/integrations/cursor-smartsh.ps1`
-- `scripts/integrations/claude-smartsh.ps1`
-
-These wrappers run in the current working directory by default, so commands execute in the active project folder.
-
-## smartshd Local Gateway
-
-Run the local execution gateway:
-
-```bash
-go run ./cmd/smartshd
+```json
+{
+  "mcpServers": {
+    "smartsh": {
+      "command": "smartsh",
+      "args": ["mcp"],
+      "env": {
+        "SMARTSH_DAEMON_URL": "http://127.0.0.1:8787",
+        "SMARTSH_MCP_COMPACT_OUTPUT": "true",
+        "SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS": "400"
+      }
+    }
+  }
+}
 ```
 
-Health check:
+### Connect to Claude Code
 
-```bash
-curl -sS http://127.0.0.1:8787/health
+Use `~/.smartsh/claude-smartsh-tool.json` or add MCP server manually with command `smartsh` and arg `mcp`.
+
+---
+
+## How It Works
+
+```
+┌─────────────┐     MCP JSON-RPC      ┌─────────┐     HTTP      ┌──────────┐
+│ Cursor /     │ ──────────────────▶  │ smartsh  │ ──────────▶  │ smartshd │
+│ Claude Code  │ ◀──────────────────  │   mcp    │ ◀──────────  │  daemon  │
+└─────────────┘   compact summary     └─────────┘   execute     └──────────┘
 ```
 
-Direct run request:
+1. **Agent sends command** via MCP tool (`smartsh_run`)
+2. **`smartsh mcp`** forwards to local daemon
+3. **`smartshd`** validates safety → executes → summarizes output
+4. **Compact JSON** returned to agent (not raw logs)
 
-```bash
-curl -sS -X POST http://127.0.0.1:8787/run \
-  -H "Content-Type: application/json" \
-  -d '{"command":"go test ./...","cwd":"/path/to/project"}'
+### Example response
+
+```json
+{
+  "status": "failed",
+  "exit_code": 1,
+  "summary": "command failed (exit code 1): Cannot find module '@app/auth'",
+  "error_type": "compile",
+  "primary_error": "Cannot find module '@app/auth'",
+  "next_action": "Fix TypeScript compiler errors and rerun build/test.",
+  "failed_files": ["src/app/auth/auth.service.ts"],
+  "top_issues": ["TS2307: Cannot find module '@app/auth'"]
+}
 ```
 
-Async run request + polling:
+Compare that to 500+ lines of raw `tsc` output the agent would normally dump.
 
-```bash
-curl -sS -X POST http://127.0.0.1:8787/run \
-  -H "Content-Type: application/json" \
-  -d '{"command":"npm test","cwd":"/path/to/project","async":true}'
+---
 
-curl -sS http://127.0.0.1:8787/jobs/<job_id>
-```
+## Features
 
-Response contains compact execution metadata:
+### Safety & Policy
 
-- `must_use_smartsh` (strict tool-enforced contract hint)
-- `job_id` + `status` (`queued|running|completed|failed|blocked`)
-- `executed`
-- `resolved_command`
-- `exit_code`
-- `summary`
-- `error_type` (`none|compile|test|runtime|dependency|policy`)
-- `top_issues`
-- `output_tail`
-- `requires_approval` + `approval_id` + `approval_message` + `risk_reason` + `risk_targets`
+- Blocks dangerous commands (`rm -rf /`, privilege escalation, pipe-to-shell)
+- Risk approval workflow — agent must confirm before running destructive ops
+- Command allowlist mode (`off` / `warn` / `enforce`)
+- Project-level policy via `.smartsh-policy.yaml`
 
-When `status` is `needs_approval`, confirm with:
+### Token Savings
 
-```bash
-curl -sS -X POST http://127.0.0.1:8787/approvals/<approval_id> \
-  -H "Content-Type: application/json" \
-  -d '{"approved":true}'
-```
+- Success runs return **only summary** (no output tail)
+- Failed runs return **truncated tail** + structured error info
+- MCP compact mode enabled by default
+- Configurable tail size via `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS`
 
-### New daemon capabilities
+### Smart Summarization
 
-- Persistent jobs in BoltDB (`SMARTSH_DAEMON_DB`) survive restarts
-- Async execution with `job_id` + `status`, history listing via `/jobs?limit=`
-- SSE status stream via `/jobs/:id/stream`
-- PTY interactive sessions (`/sessions`, `/sessions/:id/input`, `/sessions/:id/stream`, `/sessions/:id/close`)
-- Execution isolation controls (`timeout_sec`, `max_output_kb`, `max_memory_mb`, `max_cpu_seconds`, env allowlist)
-- Deterministic parser-first summarization for Jest/Vitest, Go test, TypeScript, Maven, Gradle, dotnet
-- Rich summary fields (`primary_error`, `next_action`, `failing_tests`, `failed_files`)
-- Project policy engine via `.smartsh-policy.yaml`
-- Optional daemon auth token (`SMARTSH_DAEMON_TOKEN`)
-- Prometheus-style metrics at `/metrics`
+Deterministic parsers extract structured info from:
 
-### API quick reference
+- Jest / Vitest test output
+- Go test failures
+- TypeScript compiler errors
+- Maven / Gradle build failures
+- .NET build and test output
 
-- `POST /run`
-- `GET /jobs?limit=50`
-- `GET /jobs/:id`
-- `GET /jobs/:id/stream`
-- `GET /approvals/:id`
-- `POST /approvals/:id`
-- `POST /sessions`
-- `GET /sessions/:id`
-- `POST /sessions/:id/input`
-- `GET /sessions/:id/stream`
-- `POST /sessions/:id/close`
-- `GET /metrics`
+### Daemon Capabilities
 
-### Example `.smartsh-policy.yaml`
+- Persistent jobs in BoltDB (survive restarts)
+- Async execution with `job_id` polling
+- SSE status streaming
+- PTY interactive sessions
+- Execution isolation (timeout, memory, CPU, env allowlist)
+- Optional auth token (`SMARTSH_DAEMON_TOKEN`)
+- Prometheus metrics at `/metrics`
+
+---
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `SMARTSH_DAEMON_URL` | `http://127.0.0.1:8787` | Daemon address |
+| `SMARTSH_DAEMON_TOKEN` | *(empty)* | Auth token for daemon requests |
+| `SMARTSH_MCP_COMPACT_OUTPUT` | `true` | Enable compact MCP responses |
+| `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS` | `600` | Max chars in output tail |
+| `SMARTSH_DAEMON_ADDR` | `127.0.0.1:8787` | Daemon listen address |
+| `SMARTSH_DAEMON_DB` | *(auto)* | BoltDB path for job persistence |
+
+### Policy File (`.smartsh-policy.yaml`)
 
 ```yaml
 version: 1
@@ -259,103 +221,96 @@ allow_env:
   - "CI"
 ```
 
-### Auth
+### Allowlist File (`.smartsh-allowlist`)
 
-If `SMARTSH_DAEMON_TOKEN` is set, requests must include:
+```text
+# Exact match
+exact:npm test
 
-- `X-Smartsh-Token: <token>` header, or
-- `Authorization: Bearer <token>`
+# Prefix match
+prefix:go test
 
-Wrappers (`scripts/integrations/*`) automatically forward `SMARTSH_DAEMON_TOKEN` when present.
-
-Summary classification is deterministic and parser-first for compact structured diagnostics.
-
-## Cursor / Claude Step-by-Step Test
-
-1. Start daemon:
-
-```bash
-go run ./cmd/smartshd
+# Regex match
+re:^npm run (build|dev|test)$
 ```
 
-2. In another terminal, sanity test:
+---
+
+## API Reference
+
+### Daemon endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `POST` | `/run` | Execute a command |
+| `GET` | `/jobs` | List recent jobs |
+| `GET` | `/jobs/:id` | Get job status |
+| `GET` | `/jobs/:id/stream` | SSE job status stream |
+| `POST` | `/approvals/:id` | Approve/reject risky command |
+| `POST` | `/sessions` | Create PTY session |
+| `GET` | `/sessions/:id` | Get session status |
+| `POST` | `/sessions/:id/input` | Send input to session |
+| `GET` | `/sessions/:id/stream` | SSE session output stream |
+| `POST` | `/sessions/:id/close` | Close session |
+| `GET` | `/metrics` | Prometheus metrics |
+
+### MCP tools
+
+| Tool | Description |
+|---|---|
+| `smartsh_run` | Execute command through daemon |
+| `smartsh_approve` | Approve/reject pending risky command |
+
+---
+
+## Building from Source
 
 ```bash
-./scripts/integrations/cursor-smartsh.sh run this project
+# Local build
+go build -o smartsh ./cmd/smartsh
+go build -o smartshd ./cmd/smartshd
+
+# Cross-platform (produces dist/release/*.tar.gz + *.zip)
+./scripts/build.sh        # macOS/Linux
+.\scripts\build.ps1       # Windows
 ```
 
-3. In Cursor or Claude Code tool settings, add a custom tool using:
-   - `scripts/integrations/cursor-custom-tool.example.json`
-   - or `scripts/integrations/claude-code-tool.example.json`
-4. Adjust command path if your local path differs.
-5. In agent/system instructions add:
-   - "For command execution, always use smartsh_agent tool; do not use direct shell tool."
-6. Prompt:
-   - "Create this feature and test everything."
-7. Confirm tool output returns compact JSON summaries instead of huge raw logs.
+---
 
-Optional async mode in wrappers (auto-polls `/jobs/:id` until terminal state):
+## Project Structure
 
-```bash
-export SMARTSH_ASYNC=1
-export SMARTSH_TIMEOUT_SEC=120
-export SMARTSH_ALLOWLIST_MODE=warn
-export SMARTSH_REQUIRE_APPROVAL=1
-export SMARTSH_TERMINAL_SESSION_KEY=cursor-main
-./scripts/integrations/cursor-smartsh.sh npm test
+```text
+cmd/smartsh/          CLI entry point (MCP server + setup-agent)
+cmd/smartshd/         Local execution daemon
+internal/mcpserver/   MCP JSON-RPC server implementation
+internal/security/    Safety checks, allowlist, command assessment
+internal/setupagent/  Config file generator for Cursor/Claude
+scripts/
+  build.sh            Cross-platform build script
+  install.sh          Auto-detect installer (macOS/Linux)
+  install.ps1         Installer (Windows)
+  integrations/       Wrapper scripts for Cursor/Claude
 ```
 
-MCP output compaction (enabled by default, recommended for Cursor token savings):
-
-```bash
-export SMARTSH_MCP_COMPACT_OUTPUT=true
-export SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS=600
-```
-
-Behavior:
-
-- MCP truncates `output_tail` to configured max chars.
-
-Ready-made config snippets:
-
-- `scripts/integrations/cursor-custom-tool.example.json`
-- `scripts/integrations/claude-code-tool.example.json`
-
-Use them as templates in your app settings, then adjust:
-
-- command path (if your repo path differs)
-- template variable syntax (if your app uses a different placeholder format)
-
-## Allowlist Mode
-
-Optional command allowlisting can be enabled with:
-
-- `--allowlist-mode off|warn|enforce` (default: `off`)
-- `--allowlist-file <path>` (default: `.smartsh-allowlist`)
-
-Mode behavior:
-
-- `off`: no allowlist check
-- `warn`: execute but emit warning if command is not allowlisted
-- `enforce`: block if command is not allowlisted
-
-Allowlist file format:
-
-- Empty lines and lines starting with `#` are ignored
-- `exact:<command>` exact command match
-- `prefix:<prefix>` command starts with prefix
-- `re:<regex>` regular expression match
-- Plain lines are treated as exact matches
-
-Example allowlist is provided in `.smartsh-allowlist.example`.
+---
 
 ## Safety Notes
 
 Blocked by default:
-
 - System wipe commands
-- Privilege escalation commands
+- Privilege escalation
 - Pipe-to-shell patterns
-- Suspicious destructive commands
+- Recursive destructive operations
 
-Use `--unsafe` only when you understand the consequences.
+The `--unsafe` flag or `require_approval` workflow is needed for risky operations. The agent must explicitly confirm.
+
+---
+
+<div align="center">
+
+**[Releases](https://github.com/BegaDeveloper/smartsh/releases)** · **[Issues](https://github.com/BegaDeveloper/smartsh/issues)** · **[License](LICENSE)**
+
+Built with Go. Made for AI-assisted development.
+
+</div>
