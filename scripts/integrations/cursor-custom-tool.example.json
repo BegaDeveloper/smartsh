@@ -22,15 +22,31 @@
         "type": "boolean",
         "description": "Allow otherwise blocked risky commands."
       },
+      "require_approval": {
+        "type": "boolean",
+        "description": "Require explicit approval response before executing risky commands."
+      },
+      "async": {
+        "type": "boolean",
+        "description": "Queue command as an async daemon job and poll by job_id."
+      },
+      "timeout_sec": {
+        "type": "integer",
+        "description": "Optional execution timeout in seconds."
+      },
       "allowlist_mode": {
         "type": "string",
         "enum": ["off", "warn", "enforce"]
       },
       "allowlist_file": {
         "type": "string"
+      },
+      "terminal_session_key": {
+        "type": "string",
+        "description": "Reuse a single external terminal window/tab for this session key."
       }
     },
     "required": ["instruction"]
   },
-  "stdinTemplate": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\"}"
+  "stdinTemplate": "{\"instruction\":\"{{instruction}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}"
 }

@@ -1,0 +1,2 @@
+src/app/main.ts(12,8): error TS2307: Cannot find module './missing' or its corresponding type declarations.
+src/app/main.ts(24,13): error TS7006: Parameter 'x' implicitly has an 'any' type.

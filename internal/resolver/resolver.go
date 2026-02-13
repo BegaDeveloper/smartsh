@@ -4,8 +4,8 @@ import (
 	"sort"
 	"strings"
 
-	"smartsh/internal/ai"
-	"smartsh/internal/detector"
+	"github.com/BegaDeveloper/smartsh/internal/ai"
+	"github.com/BegaDeveloper/smartsh/internal/detector"
 )
 
 func ResolveCommand(aiResponse ai.Response, environment detector.Environment) string {

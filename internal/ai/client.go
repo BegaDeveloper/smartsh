@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"smartsh/internal/detector"
+	"github.com/BegaDeveloper/smartsh/internal/detector"
 )
 
 const (

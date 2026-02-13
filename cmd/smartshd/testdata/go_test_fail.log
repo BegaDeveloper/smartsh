@@ -1,0 +1,4 @@
+--- FAIL: TestTokenParser (0.00s)
+    parser_test.go:43: expected token to parse, got error
+FAIL
+FAIL    github.com/example/project/internal/auth 0.245s

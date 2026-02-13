@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"smartsh/internal/detector"
+	"github.com/BegaDeveloper/smartsh/internal/detector"
 )
 
 var goBuildRootPattern = regexp.MustCompile(`(?i)^\s*go\s+build(\s+[-\w=./]+)*\s+\.\s*$`)

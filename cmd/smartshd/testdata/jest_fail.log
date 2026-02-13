@@ -1,0 +1,8 @@
+FAIL src/auth/auth.service.spec.ts
+  AuthService
+    ● should reject expired token
+
+      TypeError: Cannot read properties of undefined (reading 'split')
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 4 passed, 5 total

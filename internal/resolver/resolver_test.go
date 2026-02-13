@@ -3,8 +3,8 @@ package resolver
 import (
 	"testing"
 
-	"smartsh/internal/ai"
-	"smartsh/internal/detector"
+	"github.com/BegaDeveloper/smartsh/internal/ai"
+	"github.com/BegaDeveloper/smartsh/internal/detector"
 )
 
 func TestResolveCommand_UsesAICommandWhenPresent(t *testing.T) {
@@ -104,5 +104,32 @@ func TestNormalizeCommand_GoBuildRootPackageToAllPackages(t *testing.T) {
 	normalized := NormalizeCommand("go build -v .", environment)
 	if normalized != "go build -v ./..." {
 		t.Fatalf("expected go build -v ./..., got %q", normalized)
+	}
+}
+
+func TestResolveDeterministicIntent_LastFiveCommits(t *testing.T) {
+	t.Parallel()
+
+	environment := detector.Environment{
+		Runtimes: map[string]bool{"git": true},
+	}
+	response, ok := ResolveDeterministicIntent("smsh give me the last 5 commits", environment)
+	if !ok {
+		t.Fatalf("expected deterministic response")
+	}
+	if response.Command != "git log --oneline -n 5" {
+		t.Fatalf("expected git log command, got %q", response.Command)
+	}
+}
+
+func TestResolveDeterministicIntent_WithoutGitRuntime(t *testing.T) {
+	t.Parallel()
+
+	environment := detector.Environment{
+		Runtimes: map[string]bool{},
+	}
+	_, ok := ResolveDeterministicIntent("show me the last 5 commits", environment)
+	if ok {
+		t.Fatalf("expected no deterministic response without git runtime")
 	}
 }

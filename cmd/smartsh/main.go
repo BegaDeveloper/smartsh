@@ -12,11 +12,13 @@ import (
 	"strings"
 	"syscall"
 
-	"smartsh/internal/ai"
-	"smartsh/internal/detector"
-	"smartsh/internal/executor"
-	"smartsh/internal/resolver"
-	"smartsh/internal/security"
+	"github.com/BegaDeveloper/smartsh/internal/ai"
+	"github.com/BegaDeveloper/smartsh/internal/detector"
+	"github.com/BegaDeveloper/smartsh/internal/executor"
+	"github.com/BegaDeveloper/smartsh/internal/mcpserver"
+	"github.com/BegaDeveloper/smartsh/internal/resolver"
+	"github.com/BegaDeveloper/smartsh/internal/security"
+	"github.com/BegaDeveloper/smartsh/internal/setupagent"
 )
 
 const (
@@ -53,6 +55,21 @@ func main() {
 }
 
 func run() int {
+	if len(os.Args) > 1 && strings.TrimSpace(os.Args[1]) == "setup-agent" {
+		if setupError := setupagent.Run(os.Stdout); setupError != nil {
+			fmt.Fprintf(os.Stderr, "setup-agent failed: %v\n", setupError)
+			return exitFailure
+		}
+		return exitSuccess
+	}
+	if len(os.Args) > 1 && strings.TrimSpace(os.Args[1]) == "mcp" {
+		if serverError := mcpserver.Run(); serverError != nil {
+			fmt.Fprintf(os.Stderr, "mcp server failed: %v\n", serverError)
+			return exitFailure
+		}
+		return exitSuccess
+	}
+
 	unsafeExecution := flag.Bool("unsafe", false, "allow risky commands")
 	autoConfirm := flag.Bool("yes", false, "skip confirmation prompt")
 	jsonMode := flag.Bool("json", false, "output machine-readable JSON")
@@ -94,7 +111,7 @@ func run() int {
 		return fail(runResult{
 			Executed: false,
 			ExitCode: exitFailure,
-			Error:    "usage: smartsh [--unsafe] [--yes] [--json] [--dry-run] [--agent] [--cwd path] [--debug-ai] [--allowlist-mode off|warn|enforce] [--allowlist-file path] run this project",
+			Error:    "usage: smartsh setup-agent OR smartsh [--unsafe] [--yes] [--json] [--dry-run] [--agent] [--cwd path] [--debug-ai] [--allowlist-mode off|warn|enforce] [--allowlist-file path] run this project",
 		}, *jsonMode)
 	}
 
@@ -132,19 +149,23 @@ func run() int {
 		}, *jsonMode)
 	}
 
-	aiClient := ai.NewClientFromEnv()
-	aiResponse, aiError := aiClient.GenerateIntent(ctx, userInput, environment)
-	if aiError != nil {
-		if *debugAI {
-			if rawModelResponse, hasRawModelResponse := ai.DebugRawResponseFromError(aiError); hasRawModelResponse {
-				fmt.Fprintf(os.Stderr, "debug-ai raw model response: %s\n", rawModelResponse)
+	aiResponse, hasDeterministicResponse := resolver.ResolveDeterministicIntent(userInput, environment)
+	if !hasDeterministicResponse {
+		aiClient := ai.NewClientFromEnv()
+		var aiError error
+		aiResponse, aiError = aiClient.GenerateIntent(ctx, userInput, environment)
+		if aiError != nil {
+			if *debugAI {
+				if rawModelResponse, hasRawModelResponse := ai.DebugRawResponseFromError(aiError); hasRawModelResponse {
+					fmt.Fprintf(os.Stderr, "debug-ai raw model response: %s\n", rawModelResponse)
+				}
 			}
+			return fail(runResult{
+				Executed: false,
+				ExitCode: exitFailure,
+				Error:    fmt.Sprintf("ai resolution failed: %v", aiError),
+			}, *jsonMode)
 		}
-		return fail(runResult{
-			Executed: false,
-			ExitCode: exitFailure,
-			Error:    fmt.Sprintf("ai resolution failed: %v", aiError),
-		}, *jsonMode)
 	}
 
 	resolvedCommand := resolver.ResolveCommand(aiResponse, environment)

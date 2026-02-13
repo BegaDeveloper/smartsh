@@ -44,6 +44,7 @@ func scoreDataset(path string) error {
 	total := 0
 	invalid := 0
 	commandCounts := map[string]int{}
+	instructionCounts := map[string]int{}
 	intentCounts := map[string]int{}
 	riskCounts := map[string]int{}
 	suspiciousHits := map[string]int{
@@ -76,10 +77,12 @@ func scoreDataset(path string) error {
 		intent := strings.ToLower(strings.TrimSpace(output.Intent))
 		risk := strings.ToLower(strings.TrimSpace(output.Risk))
 		command := strings.TrimSpace(output.Command)
+		instruction := strings.ToLower(strings.TrimSpace(record.Instruction))
 
 		intentCounts[intent]++
 		riskCounts[risk]++
 		commandCounts[command]++
+		instructionCounts[instruction]++
 
 		commandLower := strings.ToLower(command)
 		if strings.Contains(commandLower, "rm -rf") {
@@ -105,11 +108,18 @@ func scoreDataset(path string) error {
 			duplicateCount += count - 1
 		}
 	}
+	duplicateInstructionCount := 0
+	for _, count := range instructionCounts {
+		if count > 1 {
+			duplicateInstructionCount += count - 1
+		}
+	}
 
 	fmt.Printf("dataset: %s\n", path)
 	fmt.Printf("records_total=%d invalid=%d\n", total, invalid)
 	if total > 0 {
 		fmt.Printf("duplicate_commands=%d (%.2f%%)\n", duplicateCount, float64(duplicateCount)*100/float64(total))
+		fmt.Printf("duplicate_instructions=%d (%.2f%%)\n", duplicateInstructionCount, float64(duplicateInstructionCount)*100/float64(total))
 	}
 
 	fmt.Println("risk_distribution:")
