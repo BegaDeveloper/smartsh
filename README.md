@@ -1,6 +1,6 @@
 <div align="center">
 
-# smartsh
+# >smartsh_
 
 **Safe, compact command execution for AI coding agents.**
 
@@ -38,7 +38,7 @@ When AI agents run terminal commands, they dump **huge raw logs** into context â
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh \
-  | SMARTSH_COMPONENTS="smartsh smartshd" sh \
+  | SMARTSH_VERSION=v0.1.0 sh \
   && smartsh setup-agent
 ```
 
@@ -47,8 +47,7 @@ curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/
 ### Windows (PowerShell)
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex
-smartsh.exe setup-agent
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex; smartsh setup-agent"
 ```
 
 ### Install via Go

@@ -11,7 +11,7 @@ INSTALL_DIR="${SMARTSH_INSTALL_DIR:-/usr/local/bin}"
 
 # Space-separated list of components to install from the release archive.
 # Options: smartsh, smartshd
-COMPONENTS="${SMARTSH_COMPONENTS:-smartsh}"
+COMPONENTS="${SMARTSH_COMPONENTS:-smartsh smartshd}"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
@@ -43,9 +43,21 @@ TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
+SUDO=""
+if [ "$(id -u)" -ne 0 ] && [ ! -w "$INSTALL_DIR" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    SUDO="sudo"
+  else
+    echo "Install dir is not writable: $INSTALL_DIR" >&2
+    echo "Tip: set SMARTSH_INSTALL_DIR to a user-writable directory, e.g.:" >&2
+    echo "  SMARTSH_INSTALL_DIR=\"\$HOME/.local/bin\" $0" >&2
+    exit 1
+  fi
+fi
+
 echo "Downloading ${BASE_URL}/${ASSET}"
-curl -fsSL "${BASE_URL}/${ASSET}" -o "${TMP_DIR}/${ASSET}"
-curl -fsSL "${BASE_URL}/${CHECKSUMS}" -o "${TMP_DIR}/${CHECKSUMS}"
+curl -fLsS "${BASE_URL}/${ASSET}" -o "${TMP_DIR}/${ASSET}"
+curl -fLsS "${BASE_URL}/${CHECKSUMS}" -o "${TMP_DIR}/${CHECKSUMS}"
 
 expected="$(grep "  ${ASSET}\$" "${TMP_DIR}/${CHECKSUMS}" | awk '{print $1}' || true)"
 if [ -z "$expected" ]; then
@@ -72,7 +84,7 @@ fi
 mkdir -p "${TMP_DIR}/extract"
 tar -xzf "${TMP_DIR}/${ASSET}" -C "${TMP_DIR}/extract"
 
-mkdir -p "$INSTALL_DIR"
+$SUDO mkdir -p "$INSTALL_DIR"
 for component in $COMPONENTS; do
   src="${TMP_DIR}/extract/${component}"
   if [ ! -f "$src" ]; then
@@ -82,11 +94,16 @@ for component in $COMPONENTS; do
   dest="${INSTALL_DIR}/${component}"
   echo "Installing ${component} to ${dest}"
   if command -v install >/dev/null 2>&1; then
-    install -m 0755 "$src" "$dest"
+    $SUDO install -m 0755 "$src" "$dest"
   else
-    cp "$src" "$dest"
-    chmod +x "$dest"
+    $SUDO cp "$src" "$dest"
+    $SUDO chmod +x "$dest"
   fi
 done
 
-echo "smartsh installed successfully"
+echo "smartsh installed successfully."
+echo "Installed: $COMPONENTS"
+echo "Location:  $INSTALL_DIR"
+if [ "$INSTALL_DIR" = "$HOME/.local/bin" ] || [ "$INSTALL_DIR" = "$HOME/bin" ]; then
+  echo "Tip: ensure your PATH includes $INSTALL_DIR"
+fi

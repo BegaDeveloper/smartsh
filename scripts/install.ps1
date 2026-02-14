@@ -4,7 +4,7 @@ $Repo = if ($env:SMARTSH_REPO) { $env:SMARTSH_REPO } else { "BegaDeveloper/smart
 $Version = if ($env:SMARTSH_VERSION) { $env:SMARTSH_VERSION } else { "latest" }
 $InstallDir = if ($env:SMARTSH_INSTALL_DIR) { $env:SMARTSH_INSTALL_DIR } else { "$env:USERPROFILE\AppData\Local\Programs\smartsh" }
 
-$Components = if ($env:SMARTSH_COMPONENTS) { $env:SMARTSH_COMPONENTS } else { "smartsh" }
+$Components = if ($env:SMARTSH_COMPONENTS) { $env:SMARTSH_COMPONENTS } else { "smartsh smartshd" }
 
 $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
 $Asset = "smartsh_windows_$Arch.zip"
@@ -64,4 +64,16 @@ try {
 }
 
 Write-Host "Installed smartsh components to $InstallDir"
-Write-Host "Add $InstallDir to your PATH if needed."
+
+$UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if (-not $UserPath) { $UserPath = "" }
+if ($UserPath -notlike "*$InstallDir*") {
+    $NewUserPath = ($UserPath.TrimEnd(";") + ";" + $InstallDir).TrimStart(";")
+    [Environment]::SetEnvironmentVariable("Path", $NewUserPath, "User")
+}
+if ($env:Path -notlike "*$InstallDir*") {
+    $env:Path = ($env:Path.TrimEnd(";") + ";" + $InstallDir)
+}
+
+Write-Host "Added $InstallDir to PATH (user + current session)."
+Write-Host "Try: smartsh setup-agent"
