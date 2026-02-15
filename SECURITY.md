@@ -6,7 +6,7 @@ Please **do not** open a public GitHub issue for security-sensitive reports.
 
 Instead, email the maintainer:
 
-- `security@bega.dev` (preferred)
+- `dev@ismarbegic.com` (preferred)
 
 If that address is not monitored for your fork, open a GitHub issue with **no sensitive details** and ask for a private contact channel.
 

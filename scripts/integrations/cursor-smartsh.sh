@@ -7,7 +7,7 @@ SMARTSH_TIMEOUT_SEC="${SMARTSH_TIMEOUT_SEC:-180}"
 SMARTSH_POLL_INTERVAL_SEC="${SMARTSH_POLL_INTERVAL_SEC:-0.4}"
 SMARTSH_POLL_MAX_ATTEMPTS="${SMARTSH_POLL_MAX_ATTEMPTS:-300}"
 SMARTSH_DAEMON_TOKEN="${SMARTSH_DAEMON_TOKEN:-}"
-SMARTSH_OPEN_EXTERNAL_TERMINAL="${SMARTSH_OPEN_EXTERNAL_TERMINAL:-1}"
+SMARTSH_OPEN_EXTERNAL_TERMINAL="${SMARTSH_OPEN_EXTERNAL_TERMINAL:-0}"
 SMARTSH_TERMINAL_APP="${SMARTSH_TERMINAL_APP:-terminal}"
 SMARTSH_TERMINAL_SESSION_KEY="${SMARTSH_TERMINAL_SESSION_KEY:-cursor-main}"
 SMARTSH_ALLOWLIST_MODE="${SMARTSH_ALLOWLIST_MODE:-warn}"
@@ -19,7 +19,11 @@ script_dir() {
 }
 
 start_daemon_if_needed() {
-  if curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+  if [ -n "$SMARTSH_DAEMON_TOKEN" ]; then
+    if curl -sS --max-time 1 -H "X-Smartsh-Token: $SMARTSH_DAEMON_TOKEN" "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+      return 0
+    fi
+  elif curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
     return 0
   fi
 
@@ -32,7 +36,11 @@ start_daemon_if_needed() {
 
   attempts=0
   while [ "$attempts" -lt 20 ]; do
-    if curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+    if [ -n "$SMARTSH_DAEMON_TOKEN" ]; then
+      if curl -sS --max-time 1 -H "X-Smartsh-Token: $SMARTSH_DAEMON_TOKEN" "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+        return 0
+      fi
+    elif curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
       return 0
     fi
     attempts=$((attempts + 1))

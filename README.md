@@ -4,13 +4,13 @@
 
 **Safe, compact command execution for AI coding agents.**
 
-[![Cursor](https://img.shields.io/badge/Cursor-MCP%20Ready-6C47FF?style=flat-square&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTIgMkw0IDdMMTIgMTJMMjAgN0wxMiAyWiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=&logoColor=white)](https://cursor.com)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-D97706?style=flat-square&logo=anthropic&logoColor=white)](https://claude.ai)
-[![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Cursor](https://img.shields.io/badge/Cursor-MCP%20Ready-6C47FF?style=flat&logo=data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTIgMkw0IDdMMTIgMTJMMjAgN0wxMiAyWiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=&logoColor=white)](https://cursor.com)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-Compatible-D97706?style=flat&logo=anthropic&logoColor=white)](https://claude.ai)
+[![Go](https://img.shields.io/badge/Go-1.23%2B-00ADD8?style=flat&logo=go&logoColor=white)](https://go.dev)
 
-[![macOS](https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?style=flat-square&logo=apple&logoColor=white)]()
-[![Linux](https://img.shields.io/badge/Linux-x64%20%7C%20arm64-FCC624?style=flat-square&logo=linux&logoColor=black)]()
-[![Windows](https://img.shields.io/badge/Windows-x64-0078D4?style=flat-square&logo=windows&logoColor=white)]()
+[![macOS](https://img.shields.io/badge/macOS-000000?style=flat&logo=apple&logoColor=white)]()
+[![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=000)]()
+[![Windows 11 Pro](https://img.shields.io/badge/Windows%2011%20Pro-005FB8?style=flat&logo=windows&logoColor=white)]()
 
 MCP server + local daemon that gives **Cursor** and **Claude Code** a safe, token-efficient way to run shell commands.
 
@@ -32,17 +32,17 @@ When AI agents run terminal commands, they dump **huge raw logs** into context â
 
 ---
 
-## Quick Install
+## Quick Install (End Users)
 
 ### macOS / Linux (one command)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh \
-  | SMARTSH_VERSION=v0.1.0 sh \
+  | sh \
   && smartsh setup-agent
 ```
 
-> Auto-detects your OS and CPU. Downloads, verifies checksum, installs, and generates config files.
+> Auto-detects OS/CPU, downloads from latest release, verifies checksum, installs `smartsh` + `smartshd`, then `setup-agent` generates Cursor/Claude config files in `~/.smartsh/`.
 
 ### Windows (PowerShell)
 
@@ -70,6 +70,16 @@ Grab the right archive from [**Releases**](https://github.com/BegaDeveloper/smar
 | Linux arm64 | `smartsh_linux_arm64.tar.gz` |
 | Windows x64 | `smartsh_windows_amd64.zip` |
 
+Direct latest asset URLs:
+
+```text
+https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_darwin_arm64.tar.gz
+https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_darwin_amd64.tar.gz
+https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_linux_amd64.tar.gz
+https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_linux_arm64.tar.gz
+https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_windows_amd64.zip
+```
+
 ---
 
 ## Setup with Cursor
@@ -88,6 +98,7 @@ This generates ready-to-use config files in `~/.smartsh/`:
 | `cursor-mcp.json` | Workspace `mcp.json` format |
 | `claude-smartsh-tool.json` | Claude Code tool config |
 | `agent-instructions.txt` | Paste into Cursor rules |
+| `config` | Runtime config (includes generated `SMARTSH_DAEMON_TOKEN`) |
 
 ### Connect to Cursor
 
@@ -117,6 +128,17 @@ This generates ready-to-use config files in `~/.smartsh/`:
 ### Connect to Claude Code
 
 Use `~/.smartsh/claude-smartsh-tool.json` or add MCP server manually with command `smartsh` and arg `mcp`.
+
+### Rule snippet (recommended)
+
+Add this in your Cursor/Claude rules:
+
+```text
+For command execution, always use smartsh_run (or smartsh-local_smartsh_run / smartsh_agent).
+Default to open_external_terminal=false for speed.
+Use open_external_terminal=true only for interactive/watch/TUI commands.
+Never use direct shell unless explicitly requested.
+```
 
 ---
 
@@ -198,11 +220,16 @@ Deterministic parsers extract structured info from:
 | Variable | Default | Description |
 |---|---|---|
 | `SMARTSH_DAEMON_URL` | `http://127.0.0.1:8787` | Daemon address |
-| `SMARTSH_DAEMON_TOKEN` | *(empty)* | Auth token for daemon requests |
+| `SMARTSH_DAEMON_TOKEN` | *(auto-generated via `setup-agent`)* | Auth token for daemon requests (required unless auth is disabled) |
+| `SMARTSH_DAEMON_DISABLE_AUTH` | `false` | Disable daemon auth checks explicitly (not recommended) |
 | `SMARTSH_MCP_COMPACT_OUTPUT` | `true` | Enable compact MCP responses |
+| `SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE` | `warn` | Default allowlist mode when client does not set one |
 | `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS` | `600` | Max chars in output tail |
 | `SMARTSH_DAEMON_ADDR` | `127.0.0.1:8787` | Daemon listen address |
 | `SMARTSH_DAEMON_DB` | *(auto)* | BoltDB path for job persistence |
+| `SMARTSH_SUMMARY_PROVIDER` | `deterministic` | Summary provider (`deterministic`, `ollama`, `hybrid`) |
+| `SMARTSH_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint for model summaries |
+| `SMARTSH_OLLAMA_MODEL` | `llama3.2:3b` | Ollama model used for summaries |
 
 ### Policy File (`.smartsh-policy.yaml`)
 
@@ -277,6 +304,58 @@ go build -o smartshd ./cmd/smartshd
 ./scripts/build.sh        # macOS/Linux
 .\scripts\build.ps1       # Windows
 ```
+
+---
+
+## Release Flow (Maintainers)
+
+You usually do **not** need to manually upload release files.
+
+This repository already has a release workflow:
+
+- GitHub Action: `.github/workflows/release.yml`
+- Trigger: push a tag matching `v*`
+- Publisher: GoReleaser (`.goreleaser.yaml`)
+
+### Standard release process
+
+```bash
+# 1) ensure everything is pushed on main
+git checkout main
+git pull
+
+# 2) create and push a version tag
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+After tag push, GitHub Actions builds artifacts and publishes the GitHub Release automatically.
+
+### Manual fallback (if needed)
+
+```bash
+# Build archives + checksums locally
+./scripts/build.sh
+
+# Artifacts are in:
+# dist/release/
+```
+
+Then upload files from `dist/release/` to a GitHub Release manually.
+
+---
+
+## Service Install
+
+Install and start `smartshd` as a user service:
+
+```bash
+smartshd install-service
+```
+
+- macOS: installs a `launchd` agent
+- Linux: installs a `systemd --user` service
+- Windows: installs a Task Scheduler task
 
 ---
 

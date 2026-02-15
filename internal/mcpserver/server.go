@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/BegaDeveloper/smartsh/internal/runtimeconfig"
 )
 
 const (
@@ -70,6 +72,7 @@ type daemonRunResponse struct {
 	RequiresApproval bool     `json:"requires_approval,omitempty"`
 	ApprovalID       string   `json:"approval_id,omitempty"`
 	ApprovalMessage  string   `json:"approval_message,omitempty"`
+	ApprovalHowTo    string   `json:"approval_howto,omitempty"`
 	RiskReason       string   `json:"risk_reason,omitempty"`
 	RiskTargets      []string `json:"risk_targets,omitempty"`
 	Error            string   `json:"error,omitempty"`
@@ -91,12 +94,17 @@ type mcpServer struct {
 }
 
 func Run() error {
+	configValues := map[string]string{}
+	config, configErr := runtimeconfig.Load("")
+	if configErr == nil {
+		configValues = config.Values
+	}
 	server := &mcpServer{
 		reader:      bufio.NewReader(os.Stdin),
 		writer:      bufio.NewWriter(os.Stdout),
 		httpClient:  &http.Client{Timeout: 30 * time.Second},
 		daemonURL:   daemonURLFromEnv(),
-		daemonToken: strings.TrimSpace(os.Getenv("SMARTSH_DAEMON_TOKEN")),
+		daemonToken: runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues),
 	}
 	return server.loop()
 }
@@ -271,18 +279,20 @@ func (server *mcpServer) callSmartshRun(arguments map[string]interface{}) (daemo
 		}
 	}
 	if _, exists := requestBody["allowlist_mode"]; !exists {
-		// Default to "off" to match the CLI default and avoid failing when no
-		// `.smartsh-allowlist` file exists in the repo.
-		requestBody["allowlist_mode"] = "off"
+		requestBody["allowlist_mode"] = mcpDefaultAllowlistMode()
 	}
 	if _, exists := requestBody["require_approval"]; !exists {
 		requestBody["require_approval"] = true
 	}
-	// MCP mode is always external-terminal execution to match integration contract.
-	requestBody["open_external_terminal"] = true
-	if _, exists := requestBody["terminal_app"]; !exists {
-		if terminalApp := strings.TrimSpace(os.Getenv("SMARTSH_TERMINAL_APP")); terminalApp != "" {
-			requestBody["terminal_app"] = terminalApp
+	if _, exists := requestBody["open_external_terminal"]; !exists {
+		requestBody["open_external_terminal"] = mcpOpenExternalTerminalEnabled()
+	}
+	openExternalTerminal, _ := requestBody["open_external_terminal"].(bool)
+	if openExternalTerminal {
+		if _, exists := requestBody["terminal_app"]; !exists {
+			if terminalApp := strings.TrimSpace(os.Getenv("SMARTSH_TERMINAL_APP")); terminalApp != "" {
+				requestBody["terminal_app"] = terminalApp
+			}
 		}
 	}
 	if _, exists := requestBody["terminal_session_key"]; !exists {
@@ -438,6 +448,7 @@ func (server *mcpServer) decorateApprovalPrompt(response *daemonRunResponse) {
 		targetsText = strings.Join(response.RiskTargets, ", ")
 	}
 	prompt := "You are about to modify: " + targetsText + ". Approve? (y/n) using approval_id=" + response.ApprovalID
+	response.ApprovalHowTo = fmt.Sprintf(`Use smartsh_approve with {"approval_id":"%s","decision":"yes"} to approve or {"approval_id":"%s","decision":"no"} to reject.`, response.ApprovalID, response.ApprovalID)
 	if strings.TrimSpace(response.Summary) == "" {
 		response.Summary = prompt
 	} else if !strings.Contains(response.Summary, "Approve? (y/n)") {
@@ -869,4 +880,26 @@ func mcpMaxOutputTailChars() int {
 		return defaultMCPMaxOutputTailChars
 	}
 	return parsed
+}
+
+func mcpOpenExternalTerminalEnabled() bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL")))
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off", "":
+		return false
+	default:
+		return false
+	}
+}
+
+func mcpDefaultAllowlistMode() string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE")))
+	switch mode {
+	case "off", "warn", "enforce":
+		return mode
+	default:
+		return "warn"
+	}
 }

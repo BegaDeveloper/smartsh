@@ -59,7 +59,7 @@ func TestCallSmartshRunReturnsCompletedJob(t *testing.T) {
 	}))
 	defer mockDaemon.Close()
 
-	t.Setenv("SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL", "true")
+	t.Setenv("SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL", "false")
 	t.Setenv("SMARTSH_TERMINAL_APP", "terminal")
 
 	server := &mcpServer{
@@ -80,11 +80,14 @@ func TestCallSmartshRunReturnsCompletedJob(t *testing.T) {
 	if runRequestBody["async"] != true {
 		t.Fatalf("expected async run request")
 	}
-	if runRequestBody["open_external_terminal"] != true {
-		t.Fatalf("expected open_external_terminal=true always in MCP mode")
+	if runRequestBody["open_external_terminal"] != false {
+		t.Fatalf("expected open_external_terminal=false by default in MCP mode")
 	}
-	if runRequestBody["terminal_app"] != "terminal" {
-		t.Fatalf("expected terminal_app from env, got %v", runRequestBody["terminal_app"])
+	if _, exists := runRequestBody["terminal_app"]; exists {
+		t.Fatalf("expected terminal_app to be omitted when open_external_terminal=false")
+	}
+	if runRequestBody["allowlist_mode"] != "warn" {
+		t.Fatalf("expected default allowlist_mode warn, got %v", runRequestBody["allowlist_mode"])
 	}
 }
 
@@ -323,6 +326,9 @@ func TestCallSmartshRunNeedsApprovalPrompt(t *testing.T) {
 	}
 	if response.ApprovalID != "approval-123" {
 		t.Fatalf("expected approval id to be preserved, got %q", response.ApprovalID)
+	}
+	if response.ApprovalHowTo == "" {
+		t.Fatalf("expected approval_howto to be populated")
 	}
 	if response.Summary == "" || response.Summary == "approval required" {
 		t.Fatalf("expected summary to include approval prompt, got %q", response.Summary)

@@ -31,6 +31,9 @@ func TestValidateCommand_HighRiskBlockedWithoutUnsafe(t *testing.T) {
 	if !assessment.RequiresRiskConfirmation {
 		t.Fatalf("expected high-risk command to require confirmation")
 	}
+	if assessment.RiskLevel != "high" {
+		t.Fatalf("expected risk level high, got %q", assessment.RiskLevel)
+	}
 }
 
 func TestAllowlistModes(t *testing.T) {

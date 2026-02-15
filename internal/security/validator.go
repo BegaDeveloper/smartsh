@@ -19,13 +19,14 @@ var blockedPatterns = []struct {
 }
 
 var suspiciousPatterns = []struct {
-	reason string
-	regex  *regexp.Regexp
+	reason    string
+	riskLevel string
+	regex     *regexp.Regexp
 }{
-	{reason: "recursive delete", regex: regexp.MustCompile(`(?i)\brm\s+-rf\b`)},
-	{reason: "force delete", regex: regexp.MustCompile(`(?i)\b(del|erase)\s+/f\b`)},
-	{reason: "git hard reset", regex: regexp.MustCompile(`(?i)\bgit\s+reset\s+--hard\b`)},
-	{reason: "dangerous chmod", regex: regexp.MustCompile(`(?i)\bchmod\s+777\b`)},
+	{reason: "recursive delete", riskLevel: "high", regex: regexp.MustCompile(`(?i)\brm\s+-rf\b`)},
+	{reason: "force delete", riskLevel: "high", regex: regexp.MustCompile(`(?i)\b(del|erase)\s+/f\b`)},
+	{reason: "git hard reset", riskLevel: "medium", regex: regexp.MustCompile(`(?i)\bgit\s+reset\s+--hard\b`)},
+	{reason: "dangerous chmod", riskLevel: "medium", regex: regexp.MustCompile(`(?i)\bchmod\s+777\b`)},
 }
 
 func ValidateCommand(command string, risk string, allowUnsafe bool) error {

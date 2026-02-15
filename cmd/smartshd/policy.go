@@ -114,12 +114,14 @@ func buildEnvWithPolicy(policy *projectPolicy, request runRequest) []string {
 
 	result := make([]string, 0, len(baseMap)+len(request.Env))
 	if len(allowedSet) == 0 {
-		for key, value := range baseMap {
-			result = append(result, key+"="+value)
+		for _, key := range defaultSafeEnvKeys() {
+			if value, exists := baseMap[key]; exists && !isDeniedEnvKey(key) {
+				result = append(result, key+"="+value)
+			}
 		}
 	} else {
 		for key := range allowedSet {
-			if value, exists := baseMap[key]; exists {
+			if value, exists := baseMap[key]; exists && !isDeniedEnvKey(key) {
 				result = append(result, key+"="+value)
 			}
 		}
@@ -130,12 +132,52 @@ func buildEnvWithPolicy(policy *projectPolicy, request runRequest) []string {
 		if trimmed == "" {
 			continue
 		}
+		if isDeniedEnvKey(trimmed) {
+			continue
+		}
 		if len(allowedSet) > 0 && !allowedSet[trimmed] {
 			continue
 		}
 		result = append(result, trimmed+"="+value)
 	}
 	return result
+}
+
+func defaultSafeEnvKeys() []string {
+	return []string{
+		"PATH",
+		"HOME",
+		"USER",
+		"SHELL",
+		"PWD",
+		"TMPDIR",
+		"TEMP",
+		"TMP",
+		"LANG",
+		"LC_ALL",
+		"LC_CTYPE",
+		"TERM",
+		"CI",
+	}
+}
+
+func isDeniedEnvKey(key string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(key))
+	if normalized == "" {
+		return true
+	}
+	if strings.HasSuffix(normalized, "_TOKEN") || strings.HasSuffix(normalized, "_SECRET") || strings.HasSuffix(normalized, "_PASSWORD") {
+		return true
+	}
+	if strings.HasPrefix(normalized, "AWS_") || strings.HasPrefix(normalized, "GCP_") || strings.HasPrefix(normalized, "AZURE_") {
+		return true
+	}
+	switch normalized {
+	case "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GITHUB_TOKEN", "GITLAB_TOKEN", "NPM_TOKEN", "SSH_AUTH_SOCK":
+		return true
+	default:
+		return false
+	}
 }
 
 func riskRank(risk string) int {

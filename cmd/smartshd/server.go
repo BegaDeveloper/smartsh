@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/BegaDeveloper/smartsh/internal/runtimeconfig"
 	"github.com/BegaDeveloper/smartsh/internal/security"
 )
 
@@ -30,6 +31,8 @@ type daemonServer struct {
 	store            *jobStore
 	httpClient       *http.Client
 	metrics          *metricsRegistry
+	authDisabled     bool
+	daemonToken      string
 	subscribersMutex sync.Mutex
 	subscribers      map[string]map[chan runResponse]struct{}
 	ptySessionsMutex sync.Mutex
@@ -37,12 +40,15 @@ type daemonServer struct {
 }
 
 func newDaemonServer(store *jobStore) *daemonServer {
+	authDisabled, daemonToken := resolveDaemonAuthConfig()
 	return &daemonServer{
-		store:       store,
-		httpClient:  &http.Client{Timeout: 25 * time.Second},
-		metrics:     newMetricsRegistry(),
-		subscribers: map[string]map[chan runResponse]struct{}{},
-		ptySessions: map[string]*ptySession{},
+		store:        store,
+		httpClient:   &http.Client{Timeout: 25 * time.Second},
+		metrics:      newMetricsRegistry(),
+		authDisabled: authDisabled,
+		daemonToken:  daemonToken,
+		subscribers:  map[string]map[chan runResponse]struct{}{},
+		ptySessions:  map[string]*ptySession{},
 	}
 }
 
@@ -387,9 +393,14 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 		}
 		loadedAllowlist, loadAllowlistError := security.LoadAllowlist(filepath.Join(cwd, allowlistFile))
 		if loadAllowlistError != nil {
-			return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: fmt.Sprintf("allowlist load failed: %v", loadAllowlistError)}
+			if errors.Is(loadAllowlistError, os.ErrNotExist) && parsedAllowlistMode == security.AllowlistModeWarn {
+				commandAllowlist = &security.Allowlist{}
+			} else {
+				return runResponse{MustUseSmartsh: true, Status: "failed", Executed: false, ExitCode: 1, Error: fmt.Sprintf("allowlist load failed: %v", loadAllowlistError)}
+			}
+		} else {
+			commandAllowlist = loadedAllowlist
 		}
-		commandAllowlist = loadedAllowlist
 	}
 
 	resolvedCommand := strings.TrimSpace(runRequestPayload.Command)
@@ -410,6 +421,10 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 			BlockedReason:   assessmentError.Error(),
 			Error:           "command blocked by safety policy",
 		}
+	}
+	resolvedRisk = strings.ToLower(strings.TrimSpace(commandAssessment.RiskLevel))
+	if resolvedRisk == "" {
+		resolvedRisk = "low"
 	}
 	if commandAssessment.RequiresRiskConfirmation && !runRequestPayload.Unsafe {
 		if !runRequestPayload.RequireApproval {
@@ -458,6 +473,7 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 			RequiresApproval: true,
 			ApprovalID:       approval.ID,
 			ApprovalMessage:  "risky command requires explicit approval before execution",
+			ApprovalHowTo:    fmt.Sprintf(`call smartsh_approve with {"approval_id":"%s","decision":"yes"} or {"approval_id":"%s","decision":"no"}`, approval.ID, approval.ID),
 			RiskReason:       commandAssessment.RiskReason,
 			RiskTargets:      riskTargets,
 			BlockedReason:    fmt.Sprintf("approval required: %s", commandAssessment.RiskReason),
@@ -553,7 +569,8 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 	} else {
 		exitCode, combinedOutput, executionError = runCommandWithCapture(executionContext, resolvedCommand, cwd, isolation, env)
 	}
-	deterministic := deterministicSummary(resolvedCommand, exitCode, combinedOutput, executionError)
+	summaryResult := resolveSummary(resolvedCommand, exitCode, combinedOutput, executionError, server.httpClient)
+	resolvedSummary := summaryResult.Summary
 
 	response := runResponse{
 		MustUseSmartsh:  true,
@@ -561,14 +578,14 @@ func (server *daemonServer) executeRequest(ctx context.Context, runRequestPayloa
 		Executed:        true,
 		ResolvedCommand: resolvedCommand,
 		ExitCode:        exitCode,
-		Summary:         deterministic.Summary,
-		SummarySource:   "deterministic",
-		ErrorType:       deterministic.ErrorType,
-		PrimaryError:    deterministic.PrimaryError,
-		NextAction:      deterministic.NextAction,
-		FailingTests:    deterministic.FailingTests,
-		FailedFiles:     deterministic.FailedFiles,
-		TopIssues:       deterministic.TopIssues,
+		Summary:         resolvedSummary.Summary,
+		SummarySource:   summaryResult.Source,
+		ErrorType:       resolvedSummary.ErrorType,
+		PrimaryError:    resolvedSummary.PrimaryError,
+		NextAction:      resolvedSummary.NextAction,
+		FailingTests:    resolvedSummary.FailingTests,
+		FailedFiles:     resolvedSummary.FailedFiles,
+		TopIssues:       resolvedSummary.TopIssues,
 		DurationMS:      time.Since(startedAt).Milliseconds(),
 	}
 	if executionError != nil {
@@ -942,9 +959,12 @@ func (writer *limitedBufferWriter) Write(data []byte) (int, error) {
 }
 
 func (server *daemonServer) authorize(request *http.Request) bool {
-	token := strings.TrimSpace(os.Getenv("SMARTSH_DAEMON_TOKEN"))
-	if token == "" {
+	if server.authDisabled {
 		return true
+	}
+	token := strings.TrimSpace(server.daemonToken)
+	if token == "" {
+		return false
 	}
 	headerToken := strings.TrimSpace(request.Header.Get("X-Smartsh-Token"))
 	if headerToken != "" && headerToken == token {
@@ -957,6 +977,17 @@ func (server *daemonServer) authorize(request *http.Request) bool {
 		}
 	}
 	return false
+}
+
+func resolveDaemonAuthConfig() (bool, string) {
+	configValues := map[string]string{}
+	config, configErr := runtimeconfig.Load("")
+	if configErr == nil {
+		configValues = config.Values
+	}
+	authDisabled := runtimeconfig.ResolveBool("SMARTSH_DAEMON_DISABLE_AUTH", configValues)
+	daemonToken := runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues)
+	return authDisabled, daemonToken
 }
 
 func (server *daemonServer) subscribe(jobID string, channel chan runResponse) {

@@ -35,10 +35,11 @@ Start daemon:
 go run ./cmd/smartshd
 ```
 
-Health check:
+Health check (token from `~/.smartsh/config`):
 
 ```bash
-curl -sS http://127.0.0.1:8787/health
+TOKEN="$(awk -F= '/^SMARTSH_DAEMON_TOKEN=/{print $2}' ~/.smartsh/config)"
+curl -sS -H "X-Smartsh-Token: $TOKEN" http://127.0.0.1:8787/health
 ```
 
 Expected response contains:

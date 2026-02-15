@@ -5,8 +5,13 @@ function Ensure-Daemon {
         [string]$DaemonUrl
     )
 
+    $daemonToken = if ($env:SMARTSH_DAEMON_TOKEN) { $env:SMARTSH_DAEMON_TOKEN } else { "" }
+    $healthHeaders = @{}
+    if ($daemonToken) {
+        $healthHeaders["X-Smartsh-Token"] = $daemonToken
+    }
     try {
-        Invoke-RestMethod -Uri "$DaemonUrl/health" -Method Get -TimeoutSec 1 | Out-Null
+        Invoke-RestMethod -Uri "$DaemonUrl/health" -Method Get -Headers $healthHeaders -TimeoutSec 1 | Out-Null
         return
     } catch {
         # start daemon
@@ -22,7 +27,7 @@ function Ensure-Daemon {
     for ($i = 0; $i -lt 20; $i++) {
         Start-Sleep -Milliseconds 200
         try {
-            Invoke-RestMethod -Uri "$DaemonUrl/health" -Method Get -TimeoutSec 1 | Out-Null
+            Invoke-RestMethod -Uri "$DaemonUrl/health" -Method Get -Headers $healthHeaders -TimeoutSec 1 | Out-Null
             return
         } catch {
             continue

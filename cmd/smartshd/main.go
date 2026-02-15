@@ -9,6 +9,16 @@ import (
 )
 
 func main() {
+	if handleControlCommand(os.Args[1:]) {
+		return
+	}
+	lock, lockErr := acquireDaemonLock()
+	if lockErr != nil {
+		fmt.Fprintf(os.Stderr, "smartshd failed to start: %v\n", lockErr)
+		os.Exit(1)
+	}
+	defer lock.release()
+
 	store, err := newJobStore(dbPathFromEnv())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "smartshd failed to open job store: %v\n", err)
@@ -42,5 +52,22 @@ func main() {
 	if serveError := httpServer.ListenAndServe(); serveError != nil && serveError != http.ErrServerClosed {
 		fmt.Fprintf(os.Stderr, "smartshd failed: %v\n", serveError)
 		os.Exit(1)
+	}
+}
+
+func handleControlCommand(args []string) bool {
+	if len(args) == 0 {
+		return false
+	}
+	switch strings.TrimSpace(args[0]) {
+	case "install-service":
+		if installErr := installService(); installErr != nil {
+			fmt.Fprintf(os.Stderr, "install-service failed: %v\n", installErr)
+			os.Exit(1)
+		}
+		fmt.Println("smartshd service installed and started.")
+		return true
+	default:
+		return false
 	}
 }

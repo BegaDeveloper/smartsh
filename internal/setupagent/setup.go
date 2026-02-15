@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/BegaDeveloper/smartsh/internal/runtimeconfig"
 )
 
 type cursorToolConfig struct {
@@ -18,6 +20,7 @@ type cursorToolConfig struct {
 	Description   string         `json:"description"`
 	Command       string         `json:"command"`
 	Args          []string       `json:"args"`
+	Env           map[string]any `json:"env,omitempty"`
 	InputSchema   map[string]any `json:"inputSchema"`
 	StdinTemplate string         `json:"stdinTemplate"`
 }
@@ -51,7 +54,19 @@ func Run(out io.Writer) error {
 		daemonURL = "http://127.0.0.1:8787"
 	}
 
-	if err := ensureDaemon(daemonURL); err != nil {
+	config, err := runtimeconfig.Load("")
+	if err != nil {
+		return err
+	}
+	config, daemonToken, err := runtimeconfig.EnsureToken(config, "SMARTSH_DAEMON_TOKEN")
+	if err != nil {
+		return err
+	}
+	if err := runtimeconfig.Save(config); err != nil {
+		return err
+	}
+
+	if err := ensureDaemon(daemonURL, daemonToken); err != nil {
 		return err
 	}
 
@@ -67,10 +82,10 @@ func Run(out io.Writer) error {
 	if err := writeClaudeTool(filepath.Join(outDir, "claude-smartsh-tool.json"), claudeCommand); err != nil {
 		return err
 	}
-	if err := writeCursorMCP(filepath.Join(outDir, "cursor-smartsh-mcp.json"), mcpCommand, mcpArgs, daemonURL); err != nil {
+	if err := writeCursorMCP(filepath.Join(outDir, "cursor-smartsh-mcp.json"), mcpCommand, mcpArgs, daemonURL, daemonToken); err != nil {
 		return err
 	}
-	if err := writeCursorMCPWorkspace(filepath.Join(outDir, "cursor-mcp.json"), mcpCommand, mcpArgs, daemonURL); err != nil {
+	if err := writeCursorMCPWorkspace(filepath.Join(outDir, "cursor-mcp.json"), mcpCommand, mcpArgs, daemonURL, daemonToken); err != nil {
 		return err
 	}
 	if err := writeAgentInstructions(filepath.Join(outDir, "agent-instructions.txt")); err != nil {
@@ -102,13 +117,13 @@ func defaultOutputDir() (string, error) {
 	return filepath.Join(homeDir, ".smartsh"), nil
 }
 
-func ensureDaemon(daemonURL string) error {
-	if isHTTPReady(daemonURL+"/health", 1*time.Second) {
+func ensureDaemon(daemonURL string, daemonToken string) error {
+	if isHTTPReady(daemonURL+"/health", daemonToken, 1*time.Second) {
 		return nil
 	}
 	if _, err := exec.LookPath("smartshd"); err == nil {
 		if startError := startDetached("smartshd"); startError == nil {
-			if waitHTTPReady(daemonURL+"/health", 6*time.Second) {
+			if waitHTTPReady(daemonURL+"/health", daemonToken, 6*time.Second) {
 				return nil
 			}
 		}
@@ -125,7 +140,7 @@ func ensureDaemon(daemonURL string) error {
 	if err := startDetachedCommand(command); err != nil {
 		return fmt.Errorf("failed to start smartshd: %w", err)
 	}
-	if !waitHTTPReady(daemonURL+"/health", 8*time.Second) {
+	if !waitHTTPReady(daemonURL+"/health", daemonToken, 8*time.Second) {
 		return fmt.Errorf("smartshd did not become healthy at %s", daemonURL)
 	}
 	return nil
@@ -199,11 +214,26 @@ func detectWrapperPaths(rootDir string) (string, string, string, []string, error
 }
 
 func writeCursorTool(path string, command string) error {
-	config := cursorToolConfig{
+	configValues := map[string]string{}
+	fileConfig, configErr := runtimeconfig.Load("")
+	if configErr == nil {
+		configValues = fileConfig.Values
+	}
+	daemonURL := runtimeconfig.ResolveString("SMARTSH_DAEMON_URL", configValues)
+	if daemonURL == "" {
+		daemonURL = "http://127.0.0.1:8787"
+	}
+	daemonToken := runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues)
+	cursorConfig := cursorToolConfig{
 		Name:        "smartsh-agent",
 		Description: "Run terminal commands through smartshd and return compact summaries.",
 		Command:     command,
 		Args:        []string{},
+		Env: map[string]any{
+			"SMARTSH_DAEMON_URL":     daemonURL,
+			"SMARTSH_DAEMON_TOKEN":   daemonToken,
+			"SMARTSH_ALLOWLIST_MODE": "warn",
+		},
 		InputSchema: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -222,17 +252,32 @@ func writeCursorTool(path string, command string) error {
 		},
 		StdinTemplate: "{\"command\":\"{{command}}\",\"cwd\":\"{{cwd}}\",\"dry_run\":{{dry_run}},\"unsafe\":{{unsafe}},\"require_approval\":{{require_approval}},\"async\":{{async}},\"timeout_sec\":{{timeout_sec}},\"allowlist_mode\":\"{{allowlist_mode}}\",\"allowlist_file\":\"{{allowlist_file}}\",\"terminal_session_key\":\"{{terminal_session_key}}\"}",
 	}
-	return writeJSONFile(path, config)
+	return writeJSONFile(path, cursorConfig)
 }
 
 func writeClaudeTool(path string, command string) error {
-	config := claudeToolConfig{
+	configValues := map[string]string{}
+	fileConfig, configErr := runtimeconfig.Load("")
+	if configErr == nil {
+		configValues = fileConfig.Values
+	}
+	daemonURL := runtimeconfig.ResolveString("SMARTSH_DAEMON_URL", configValues)
+	if daemonURL == "" {
+		daemonURL = "http://127.0.0.1:8787"
+	}
+	daemonToken := runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues)
+	claudeConfig := claudeToolConfig{
 		Tools: []map[string]any{
 			{
 				"name":        "smartsh_agent",
 				"description": "Execute terminal commands through smartshd and return compact summaries.",
 				"command":     command,
 				"args":        []string{},
+				"env": map[string]any{
+					"SMARTSH_DAEMON_URL":     daemonURL,
+					"SMARTSH_DAEMON_TOKEN":   daemonToken,
+					"SMARTSH_ALLOWLIST_MODE": "warn",
+				},
 				"input_schema": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -253,13 +298,17 @@ func writeClaudeTool(path string, command string) error {
 			},
 		},
 	}
-	return writeJSONFile(path, config)
+	return writeJSONFile(path, claudeConfig)
 }
 
-func writeCursorMCP(path string, command string, args []string, daemonURL string) error {
+func writeCursorMCP(path string, command string, args []string, daemonURL string, daemonToken string) error {
 	terminalApp := strings.TrimSpace(os.Getenv("SMARTSH_TERMINAL_APP"))
 	if terminalApp == "" {
 		terminalApp = "terminal"
+	}
+	defaultAllowlistMode := strings.TrimSpace(os.Getenv("SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE"))
+	if defaultAllowlistMode == "" {
+		defaultAllowlistMode = "warn"
 	}
 	config := cursorMCPConfig{
 		Name:    "smartsh",
@@ -267,17 +316,23 @@ func writeCursorMCP(path string, command string, args []string, daemonURL string
 		Args:    args,
 		Env: map[string]string{
 			"SMARTSH_DAEMON_URL":                 daemonURL,
-			"SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "true",
+			"SMARTSH_DAEMON_TOKEN":               daemonToken,
+			"SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "false",
+			"SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE": defaultAllowlistMode,
 			"SMARTSH_TERMINAL_APP":               terminalApp,
 		},
 	}
 	return writeJSONFile(path, config)
 }
 
-func writeCursorMCPWorkspace(path string, command string, args []string, daemonURL string) error {
+func writeCursorMCPWorkspace(path string, command string, args []string, daemonURL string, daemonToken string) error {
 	terminalApp := strings.TrimSpace(os.Getenv("SMARTSH_TERMINAL_APP"))
 	if terminalApp == "" {
 		terminalApp = "terminal"
+	}
+	defaultAllowlistMode := strings.TrimSpace(os.Getenv("SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE"))
+	if defaultAllowlistMode == "" {
+		defaultAllowlistMode = "warn"
 	}
 	config := cursorMCPWorkspaceConfig{
 		MCPServers: map[string]map[string]any{
@@ -286,7 +341,9 @@ func writeCursorMCPWorkspace(path string, command string, args []string, daemonU
 				"args":    args,
 				"env": map[string]string{
 					"SMARTSH_DAEMON_URL":                 daemonURL,
-					"SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "true",
+					"SMARTSH_DAEMON_TOKEN":               daemonToken,
+					"SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "false",
+					"SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE": defaultAllowlistMode,
 					"SMARTSH_TERMINAL_APP":               terminalApp,
 				},
 			},
@@ -296,7 +353,7 @@ func writeCursorMCPWorkspace(path string, command string, args []string, daemonU
 }
 
 func writeAgentInstructions(path string) error {
-	content := "For command execution, always use the smartsh MCP tool (smartsh_run; in some clients it appears as smartsh-local_smartsh_run).\nAlways set open_external_terminal=true and set terminal_app to terminal or iterm.\nNever use direct shell execution unless explicitly requested by the user.\nDo not use run_terminal_cmd when the smartsh MCP tool is available.\nPrefer summarized tool output and avoid dumping full terminal logs.\n"
+	content := "For command execution, always use the smartsh MCP tool (smartsh_run; in some clients it appears as smartsh-local_smartsh_run).\nDefault to open_external_terminal=false for speed.\nEnable open_external_terminal=true only for interactive/watch/TUI commands where user-visible terminal output is required.\nNever use direct shell execution unless explicitly requested by the user.\nDo not use run_terminal_cmd when the smartsh MCP tool is available.\nPrefer summarized tool output and avoid dumping full terminal logs.\n"
 	return os.WriteFile(path, []byte(content), 0o644)
 }
 
@@ -309,9 +366,16 @@ func writeJSONFile(path string, payload any) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
-func isHTTPReady(url string, timeout time.Duration) bool {
+func isHTTPReady(url string, daemonToken string, timeout time.Duration) bool {
 	client := &http.Client{Timeout: timeout}
-	response, err := client.Get(url)
+	request, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return false
+	}
+	if strings.TrimSpace(daemonToken) != "" {
+		request.Header.Set("X-Smartsh-Token", daemonToken)
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return false
 	}
@@ -319,10 +383,10 @@ func isHTTPReady(url string, timeout time.Duration) bool {
 	return response.StatusCode >= 200 && response.StatusCode < 500
 }
 
-func waitHTTPReady(url string, timeout time.Duration) bool {
+func waitHTTPReady(url string, daemonToken string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if isHTTPReady(url, 1*time.Second) {
+		if isHTTPReady(url, daemonToken, 1*time.Second) {
 			return true
 		}
 		time.Sleep(200 * time.Millisecond)

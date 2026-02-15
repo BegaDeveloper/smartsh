@@ -170,6 +170,9 @@ func TestExecuteRequest_RiskyCommandNeedsApproval(t *testing.T) {
 	if response.Status != "needs_approval" {
 		t.Fatalf("expected needs_approval status, got %q", response.Status)
 	}
+	if !strings.Contains(response.ApprovalHowTo, "smartsh_approve") {
+		t.Fatalf("expected approval_howto guidance, got %q", response.ApprovalHowTo)
+	}
 	if response.ApprovalID == "" {
 		t.Fatalf("expected approval id in response")
 	}
@@ -183,9 +186,13 @@ func TestExecuteRequest_RiskyCommandNeedsApproval(t *testing.T) {
 	if approval == nil {
 		t.Fatalf("expected approval to be persisted")
 	}
+	if approval.ResolvedRisk != "high" {
+		t.Fatalf("expected resolved risk high, got %q", approval.ResolvedRisk)
+	}
 }
 
 func TestHandleApprovalRoutes_RejectsPendingApproval(t *testing.T) {
+	t.Setenv("SMARTSH_DAEMON_DISABLE_AUTH", "true")
 	tempDir := t.TempDir()
 	store, err := newJobStore(filepath.Join(tempDir, "jobs.db"))
 	if err != nil {

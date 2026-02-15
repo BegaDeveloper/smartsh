@@ -42,6 +42,7 @@ type runResponse struct {
 	RequiresApproval bool     `json:"requires_approval,omitempty"`
 	ApprovalID       string   `json:"approval_id,omitempty"`
 	ApprovalMessage  string   `json:"approval_message,omitempty"`
+	ApprovalHowTo    string   `json:"approval_howto,omitempty"`
 	RiskReason       string   `json:"risk_reason,omitempty"`
 	RiskTargets      []string `json:"risk_targets,omitempty"`
 	Error            string   `json:"error,omitempty"`

@@ -13,7 +13,11 @@ script_dir() {
 }
 
 start_daemon_if_needed() {
-  if curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+  if [ -n "$SMARTSH_DAEMON_TOKEN" ]; then
+    if curl -sS --max-time 1 -H "X-Smartsh-Token: $SMARTSH_DAEMON_TOKEN" "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+      return 0
+    fi
+  elif curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
     return 0
   fi
 
@@ -26,7 +30,11 @@ start_daemon_if_needed() {
 
   attempts=0
   while [ "$attempts" -lt 20 ]; do
-    if curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+    if [ -n "$SMARTSH_DAEMON_TOKEN" ]; then
+      if curl -sS --max-time 1 -H "X-Smartsh-Token: $SMARTSH_DAEMON_TOKEN" "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
+        return 0
+      fi
+    elif curl -sS --max-time 1 "$SMARTSH_DAEMON_URL/health" >/dev/null 2>&1; then
       return 0
     fi
     attempts=$((attempts + 1))
