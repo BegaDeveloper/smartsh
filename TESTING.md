@@ -24,7 +24,7 @@ What these tests validate:
 
 - summary parsing and classification,
 - output size/tail behavior for token control,
-- `summary_source` behavior (`deterministic`),
+- `summary_source` behavior (`ollama` when available, `ollama_unavailable` or `deterministic` fallback otherwise),
 - MCP async polling behavior for long-running jobs.
 
 ## 2) Start and verify daemon
@@ -61,7 +61,7 @@ Use prompts that explicitly force smartsh MCP tool usage:
 - `status` (`completed`/`failed`/`blocked`/`running`)
 - `exit_code` (source of truth for pass/fail)
 - `summary` and `error_type`
-- `summary_source`: `deterministic`
+- `summary_source`: `ollama` (expected default)
 
 Token-control expectations:
 

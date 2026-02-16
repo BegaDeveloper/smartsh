@@ -44,6 +44,33 @@ curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/
 
 > Auto-detects OS/CPU, downloads from latest release, verifies checksum, installs `smartsh` + `smartshd`, then `setup-agent` generates Cursor/Claude config files in `~/.smartsh/`.
 
+### Required: Ollama (always-on summaries)
+
+smartsh now defaults to Ollama-backed summaries. Install Ollama and pull the model:
+
+```bash
+# macOS / Linux
+curl -fsSL https://ollama.com/install.sh | sh
+ollama serve
+ollama pull llama3.2:3b
+```
+
+Windows:
+
+- Install Ollama from `https://ollama.com/download`
+- Then run:
+
+```powershell
+ollama serve
+ollama pull llama3.2:3b
+```
+
+`smartsh setup-agent` now performs a strict preflight:
+
+- verifies Ollama is reachable at `SMARTSH_OLLAMA_URL` (default `http://127.0.0.1:11434`)
+- verifies `SMARTSH_OLLAMA_MODEL` exists locally (default `llama3.2:3b`)
+- fails fast with instructions if either check is missing
+
 ### Windows (PowerShell)
 
 ```powershell
@@ -99,6 +126,18 @@ This generates ready-to-use config files in `~/.smartsh/`:
 | `claude-smartsh-tool.json` | Claude Code tool config |
 | `agent-instructions.txt` | Paste into Cursor rules |
 | `config` | Runtime config (includes generated `SMARTSH_DAEMON_TOKEN`) |
+
+Validate your local setup any time with:
+
+```bash
+smartsh doctor
+```
+
+`smartsh doctor` checks:
+- daemon auth/token
+- daemon health endpoint
+- ollama health + configured model presence
+- generated Cursor/Claude MCP config files
 
 ### Connect to Cursor
 
@@ -227,7 +266,8 @@ Deterministic parsers extract structured info from:
 | `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS` | `600` | Max chars in output tail |
 | `SMARTSH_DAEMON_ADDR` | `127.0.0.1:8787` | Daemon listen address |
 | `SMARTSH_DAEMON_DB` | *(auto)* | BoltDB path for job persistence |
-| `SMARTSH_SUMMARY_PROVIDER` | `deterministic` | Summary provider (`deterministic`, `ollama`, `hybrid`) |
+| `SMARTSH_SUMMARY_PROVIDER` | `ollama` | Summary provider (`deterministic`, `ollama`, `hybrid`) |
+| `SMARTSH_OLLAMA_REQUIRED` | `true` | Require Ollama summaries; if unavailable response is marked `ollama_unavailable` |
 | `SMARTSH_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint for model summaries |
 | `SMARTSH_OLLAMA_MODEL` | `llama3.2:3b` | Ollama model used for summaries |
 
@@ -324,7 +364,11 @@ This repository already has a release workflow:
 git checkout main
 git pull
 
-# 2) create and push a version tag
+# 2) optional local build/test check
+go test ./...
+./scripts/build.sh
+
+# 3) create and push a version tag
 git tag v0.1.1
 git push origin v0.1.1
 ```

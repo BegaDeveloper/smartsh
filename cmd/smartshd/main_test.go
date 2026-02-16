@@ -87,6 +87,7 @@ func TestJobStorePersistence(t *testing.T) {
 }
 
 func TestExecuteRequest_SuccessOmitsOutputTail(t *testing.T) {
+	t.Setenv("SMARTSH_SUMMARY_PROVIDER", "deterministic")
 	tempDir := t.TempDir()
 	store, err := newJobStore(filepath.Join(tempDir, "jobs.db"))
 	if err != nil {

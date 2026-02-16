@@ -26,6 +26,13 @@ func run() int {
 		}
 		return exitSuccess
 	}
+	if len(os.Args) > 1 && strings.TrimSpace(os.Args[1]) == "doctor" {
+		if doctorError := runDoctor(os.Stdout, os.Stderr); doctorError != nil {
+			fmt.Fprintf(os.Stderr, "doctor failed: %v\n", doctorError)
+			return exitFailure
+		}
+		return exitSuccess
+	}
 	if len(os.Args) > 1 && strings.TrimSpace(os.Args[1]) == "mcp" {
 		if serverError := mcpserver.Run(); serverError != nil {
 			fmt.Fprintf(os.Stderr, "mcp server failed: %v\n", serverError)
@@ -34,6 +41,6 @@ func run() int {
 		return exitSuccess
 	}
 
-	fmt.Fprintln(os.Stderr, "smart terminal mode was removed. use: smartsh mcp")
+	fmt.Fprintln(os.Stderr, "usage: smartsh <setup-agent|doctor|mcp>")
 	return exitFailure
 }

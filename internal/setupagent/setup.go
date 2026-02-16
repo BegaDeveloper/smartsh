@@ -66,6 +66,11 @@ func Run(out io.Writer) error {
 		return err
 	}
 
+	ollamaURL, ollamaModel := resolveOllamaSettings(config.Values)
+	if err := ensureOllamaReady(ollamaURL, ollamaModel); err != nil {
+		return err
+	}
+
 	if err := ensureDaemon(daemonURL, daemonToken); err != nil {
 		return err
 	}
@@ -224,15 +229,20 @@ func writeCursorTool(path string, command string) error {
 		daemonURL = "http://127.0.0.1:8787"
 	}
 	daemonToken := runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues)
+	ollamaURL, ollamaModel := resolveOllamaSettings(configValues)
 	cursorConfig := cursorToolConfig{
 		Name:        "smartsh-agent",
 		Description: "Run terminal commands through smartshd and return compact summaries.",
 		Command:     command,
 		Args:        []string{},
 		Env: map[string]any{
-			"SMARTSH_DAEMON_URL":     daemonURL,
-			"SMARTSH_DAEMON_TOKEN":   daemonToken,
-			"SMARTSH_ALLOWLIST_MODE": "warn",
+			"SMARTSH_DAEMON_URL":       daemonURL,
+			"SMARTSH_DAEMON_TOKEN":     daemonToken,
+			"SMARTSH_ALLOWLIST_MODE":   "warn",
+			"SMARTSH_SUMMARY_PROVIDER": "ollama",
+			"SMARTSH_OLLAMA_REQUIRED":  "true",
+			"SMARTSH_OLLAMA_URL":       ollamaURL,
+			"SMARTSH_OLLAMA_MODEL":     ollamaModel,
 		},
 		InputSchema: map[string]any{
 			"type": "object",
@@ -266,6 +276,7 @@ func writeClaudeTool(path string, command string) error {
 		daemonURL = "http://127.0.0.1:8787"
 	}
 	daemonToken := runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues)
+	ollamaURL, ollamaModel := resolveOllamaSettings(configValues)
 	claudeConfig := claudeToolConfig{
 		Tools: []map[string]any{
 			{
@@ -274,9 +285,13 @@ func writeClaudeTool(path string, command string) error {
 				"command":     command,
 				"args":        []string{},
 				"env": map[string]any{
-					"SMARTSH_DAEMON_URL":     daemonURL,
-					"SMARTSH_DAEMON_TOKEN":   daemonToken,
-					"SMARTSH_ALLOWLIST_MODE": "warn",
+					"SMARTSH_DAEMON_URL":       daemonURL,
+					"SMARTSH_DAEMON_TOKEN":     daemonToken,
+					"SMARTSH_ALLOWLIST_MODE":   "warn",
+					"SMARTSH_SUMMARY_PROVIDER": "ollama",
+					"SMARTSH_OLLAMA_REQUIRED":  "true",
+					"SMARTSH_OLLAMA_URL":       ollamaURL,
+					"SMARTSH_OLLAMA_MODEL":     ollamaModel,
 				},
 				"input_schema": map[string]any{
 					"type": "object",
@@ -310,6 +325,7 @@ func writeCursorMCP(path string, command string, args []string, daemonURL string
 	if defaultAllowlistMode == "" {
 		defaultAllowlistMode = "warn"
 	}
+	ollamaURL, ollamaModel := resolveOllamaSettings(nil)
 	config := cursorMCPConfig{
 		Name:    "smartsh",
 		Command: command,
@@ -320,6 +336,10 @@ func writeCursorMCP(path string, command string, args []string, daemonURL string
 			"SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "false",
 			"SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE": defaultAllowlistMode,
 			"SMARTSH_TERMINAL_APP":               terminalApp,
+			"SMARTSH_SUMMARY_PROVIDER":           "ollama",
+			"SMARTSH_OLLAMA_REQUIRED":            "true",
+			"SMARTSH_OLLAMA_URL":                 ollamaURL,
+			"SMARTSH_OLLAMA_MODEL":               ollamaModel,
 		},
 	}
 	return writeJSONFile(path, config)
@@ -334,6 +354,7 @@ func writeCursorMCPWorkspace(path string, command string, args []string, daemonU
 	if defaultAllowlistMode == "" {
 		defaultAllowlistMode = "warn"
 	}
+	ollamaURL, ollamaModel := resolveOllamaSettings(nil)
 	config := cursorMCPWorkspaceConfig{
 		MCPServers: map[string]map[string]any{
 			"smartsh": {
@@ -345,6 +366,10 @@ func writeCursorMCPWorkspace(path string, command string, args []string, daemonU
 					"SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "false",
 					"SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE": defaultAllowlistMode,
 					"SMARTSH_TERMINAL_APP":               terminalApp,
+					"SMARTSH_SUMMARY_PROVIDER":           "ollama",
+					"SMARTSH_OLLAMA_REQUIRED":            "true",
+					"SMARTSH_OLLAMA_URL":                 ollamaURL,
+					"SMARTSH_OLLAMA_MODEL":               ollamaModel,
 				},
 			},
 		},
@@ -353,8 +378,83 @@ func writeCursorMCPWorkspace(path string, command string, args []string, daemonU
 }
 
 func writeAgentInstructions(path string) error {
-	content := "For command execution, always use the smartsh MCP tool (smartsh_run; in some clients it appears as smartsh-local_smartsh_run).\nDefault to open_external_terminal=false for speed.\nEnable open_external_terminal=true only for interactive/watch/TUI commands where user-visible terminal output is required.\nNever use direct shell execution unless explicitly requested by the user.\nDo not use run_terminal_cmd when the smartsh MCP tool is available.\nPrefer summarized tool output and avoid dumping full terminal logs.\n"
+	content := "For command execution, always use the smartsh MCP tool (smartsh_run; in some clients it appears as smartsh-local_smartsh_run).\nDefault to open_external_terminal=false for speed.\nEnable open_external_terminal=true only for interactive/watch/TUI commands where user-visible terminal output is required.\nOllama summaries are required by default; if unavailable, ask the user to start Ollama and pull the configured model.\nNever use direct shell execution unless explicitly requested by the user.\nDo not use run_terminal_cmd when the smartsh MCP tool is available.\nPrefer summarized tool output and avoid dumping full terminal logs.\n"
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+func resolveOllamaSettings(configValues map[string]string) (string, string) {
+	ollamaURL := runtimeconfig.ResolveString("SMARTSH_OLLAMA_URL", configValues)
+	if ollamaURL == "" {
+		ollamaURL = "http://127.0.0.1:11434"
+	}
+	ollamaModel := runtimeconfig.ResolveString("SMARTSH_OLLAMA_MODEL", configValues)
+	if ollamaModel == "" {
+		ollamaModel = "llama3.2:3b"
+	}
+	return ollamaURL, ollamaModel
+}
+
+func ensureOllamaReady(ollamaURL string, ollamaModel string) error {
+	tagsURL := strings.TrimRight(strings.TrimSpace(ollamaURL), "/") + "/api/tags"
+	client := &http.Client{Timeout: 3 * time.Second}
+	request, err := http.NewRequest(http.MethodGet, tagsURL, nil)
+	if err != nil {
+		return fmt.Errorf("ollama preflight failed: invalid SMARTSH_OLLAMA_URL %q: %w", ollamaURL, err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return fmt.Errorf(
+			"ollama preflight failed: cannot reach %s (%v). start ollama first: `ollama serve` and then `ollama pull %s`",
+			tagsURL,
+			err,
+			ollamaModel,
+		)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf(
+			"ollama preflight failed: %s returned HTTP %d. start ollama first: `ollama serve` and then `ollama pull %s`",
+			tagsURL,
+			response.StatusCode,
+			ollamaModel,
+		)
+	}
+
+	payload := struct {
+		Models []struct {
+			Name  string `json:"name"`
+			Model string `json:"model"`
+		} `json:"models"`
+	}{}
+	if decodeErr := json.NewDecoder(response.Body).Decode(&payload); decodeErr != nil {
+		return fmt.Errorf("ollama preflight failed: invalid /api/tags response: %w", decodeErr)
+	}
+	for _, model := range payload.Models {
+		if ollamaModelMatches(ollamaModel, model.Name) || ollamaModelMatches(ollamaModel, model.Model) {
+			return nil
+		}
+	}
+	return fmt.Errorf(
+		"ollama preflight failed: model %q is not available locally. run `ollama pull %s` and re-run `smartsh setup-agent`",
+		ollamaModel,
+		ollamaModel,
+	)
+}
+
+func ollamaModelMatches(requested string, candidate string) bool {
+	normalizedRequested := strings.ToLower(strings.TrimSpace(requested))
+	normalizedCandidate := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(candidate, "library/")))
+	if normalizedRequested == "" || normalizedCandidate == "" {
+		return false
+	}
+	if normalizedRequested == normalizedCandidate {
+		return true
+	}
+	// Allow matching when requested model omits explicit tag.
+	if !strings.Contains(normalizedRequested, ":") && strings.HasPrefix(normalizedCandidate, normalizedRequested+":") {
+		return true
+	}
+	return false
 }
 
 func writeJSONFile(path string, payload any) error {

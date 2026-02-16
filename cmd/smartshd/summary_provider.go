@@ -21,20 +21,27 @@ func resolveSummary(command string, exitCode int, output string, runErr error, c
 	deterministic := deterministicSummary(command, exitCode, output, runErr)
 	provider := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_SUMMARY_PROVIDER")))
 	if provider == "" {
-		provider = "deterministic"
+		provider = "ollama"
 	}
+	ollamaRequired := parseEnvBoolDefault("SMARTSH_OLLAMA_REQUIRED", true)
 	switch provider {
 	case "deterministic":
 		return summaryProviderResult{Summary: deterministic, Source: "deterministic"}
 	case "ollama":
-		ollamaSummary, ok := ollamaSummaryForOutput(command, exitCode, output, deterministic, client)
+		ollamaSummary, ok, failureReason := ollamaSummaryForOutput(command, exitCode, output, deterministic, client)
 		if ok {
 			return summaryProviderResult{Summary: ollamaSummary, Source: "ollama"}
+		}
+		if ollamaRequired {
+			return summaryProviderResult{
+				Summary: enrichSummaryWithOllamaUnavailableMessage(deterministic, failureReason),
+				Source:  "ollama_unavailable",
+			}
 		}
 		return summaryProviderResult{Summary: deterministic, Source: "deterministic"}
 	case "hybrid":
 		if shouldUseOllamaFallback(deterministic, exitCode) {
-			ollamaSummary, ok := ollamaSummaryForOutput(command, exitCode, output, deterministic, client)
+			ollamaSummary, ok, _ := ollamaSummaryForOutput(command, exitCode, output, deterministic, client)
 			if ok {
 				return summaryProviderResult{Summary: ollamaSummary, Source: "hybrid_ollama"}
 			}
@@ -58,7 +65,7 @@ func shouldUseOllamaFallback(summary parsedSummary, exitCode int) bool {
 	return false
 }
 
-func ollamaSummaryForOutput(command string, exitCode int, output string, deterministic parsedSummary, client *http.Client) (parsedSummary, bool) {
+func ollamaSummaryForOutput(command string, exitCode int, output string, deterministic parsedSummary, client *http.Client) (parsedSummary, bool, string) {
 	url := strings.TrimSpace(os.Getenv("SMARTSH_OLLAMA_URL"))
 	if url == "" {
 		url = "http://127.0.0.1:11434"
@@ -83,11 +90,11 @@ func ollamaSummaryForOutput(command string, exitCode int, output string, determi
 	}
 	payload, err := json.Marshal(requestBody)
 	if err != nil {
-		return deterministic, false
+		return deterministic, false, "failed to encode ollama request"
 	}
 	request, err := http.NewRequest(http.MethodPost, strings.TrimRight(url, "/")+"/api/generate", bytes.NewReader(payload))
 	if err != nil {
-		return deterministic, false
+		return deterministic, false, "failed to create ollama request"
 	}
 	request.Header.Set("Content-Type", "application/json")
 	ollamaClient := client
@@ -98,28 +105,28 @@ func ollamaSummaryForOutput(command string, exitCode int, output string, determi
 	}
 	response, err := ollamaClient.Do(request)
 	if err != nil {
-		return deterministic, false
+		return deterministic, false, "ollama is unreachable"
 	}
 	defer response.Body.Close()
 	if response.StatusCode >= 400 {
-		return deterministic, false
+		return deterministic, false, "ollama returned non-success status"
 	}
 	rawBody, err := io.ReadAll(io.LimitReader(response.Body, 2*1024*1024))
 	if err != nil {
-		return deterministic, false
+		return deterministic, false, "failed to read ollama response"
 	}
 	type ollamaResponse struct {
 		Response string `json:"response"`
 	}
 	parsed := ollamaResponse{}
 	if err := json.Unmarshal(rawBody, &parsed); err != nil {
-		return deterministic, false
+		return deterministic, false, "ollama returned invalid JSON payload"
 	}
 	normalized, ok := parseOllamaSummaryJSON(parsed.Response)
 	if !ok {
-		return deterministic, false
+		return deterministic, false, "ollama response did not match expected summary schema"
 	}
-	return mergeSummary(deterministic, normalized), true
+	return mergeSummary(deterministic, normalized), true, ""
 }
 
 func buildOllamaPrompt(command string, exitCode int, outputTail string) string {
@@ -196,6 +203,46 @@ func parsePositiveIntEnv(name string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func parseEnvBoolDefault(name string, fallback bool) bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func enrichSummaryWithOllamaUnavailableMessage(base parsedSummary, reason string) parsedSummary {
+	enriched := base
+	warning := "ollama summary required but unavailable"
+	if strings.TrimSpace(reason) != "" {
+		warning = warning + ": " + reason
+	}
+	if strings.TrimSpace(enriched.PrimaryError) == "" {
+		enriched.PrimaryError = warning
+	}
+	if strings.TrimSpace(enriched.NextAction) == "" {
+		enriched.NextAction = "Start Ollama locally and ensure the model is installed (ollama serve; ollama pull " + defaultOllamaModel() + ")."
+	}
+	if strings.TrimSpace(enriched.Summary) == "" {
+		enriched.Summary = warning
+	} else {
+		enriched.Summary = enriched.Summary + " (" + warning + ")"
+	}
+	return enriched
+}
+
+func defaultOllamaModel() string {
+	model := strings.TrimSpace(os.Getenv("SMARTSH_OLLAMA_MODEL"))
+	if model == "" {
+		return "llama3.2:3b"
+	}
+	return model
 }
 
 func redactForModel(input string) string {
