@@ -156,8 +156,14 @@ smartsh doctor
       "args": ["mcp"],
       "env": {
         "SMARTSH_DAEMON_URL": "http://127.0.0.1:8787",
+        "SMARTSH_DAEMON_TOKEN": "<token-from-~/.smartsh/config>",
         "SMARTSH_MCP_COMPACT_OUTPUT": "true",
-        "SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS": "400"
+        "SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS": "400",
+        "SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "false",
+        "SMARTSH_SUMMARY_PROVIDER": "ollama",
+        "SMARTSH_OLLAMA_REQUIRED": "true",
+        "SMARTSH_OLLAMA_URL": "http://127.0.0.1:11434",
+        "SMARTSH_OLLAMA_MODEL": "llama3.2:3b"
       }
     }
   }
@@ -232,7 +238,9 @@ Compare that to 500+ lines of raw `tsc` output the agent would normally dump.
 
 ### Smart Summarization
 
-Deterministic parsers extract structured info from:
+Ollama-backed summaries are default (`SMARTSH_SUMMARY_PROVIDER=ollama`), with deterministic parsing still available as fallback/override.
+
+Deterministic parsers support:
 
 - Jest / Vitest test output
 - Go test failures
@@ -247,7 +255,7 @@ Deterministic parsers extract structured info from:
 - SSE status streaming
 - PTY interactive sessions
 - Execution isolation (timeout, memory, CPU, env allowlist)
-- Optional auth token (`SMARTSH_DAEMON_TOKEN`)
+- Token auth is required by default (`SMARTSH_DAEMON_TOKEN`)
 - Prometheus metrics at `/metrics`
 
 ---
@@ -264,12 +272,15 @@ Deterministic parsers extract structured info from:
 | `SMARTSH_MCP_COMPACT_OUTPUT` | `true` | Enable compact MCP responses |
 | `SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE` | `warn` | Default allowlist mode when client does not set one |
 | `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS` | `600` | Max chars in output tail |
+| `SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL` | `false` | Open external terminal for runs (`true` for interactive/TUI/watch tasks) |
 | `SMARTSH_DAEMON_ADDR` | `127.0.0.1:8787` | Daemon listen address |
 | `SMARTSH_DAEMON_DB` | *(auto)* | BoltDB path for job persistence |
 | `SMARTSH_SUMMARY_PROVIDER` | `ollama` | Summary provider (`deterministic`, `ollama`, `hybrid`) |
 | `SMARTSH_OLLAMA_REQUIRED` | `true` | Require Ollama summaries; if unavailable response is marked `ollama_unavailable` |
 | `SMARTSH_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint for model summaries |
 | `SMARTSH_OLLAMA_MODEL` | `llama3.2:3b` | Ollama model used for summaries |
+| `SMARTSH_OLLAMA_TIMEOUT_SEC` | `8` | Timeout for Ollama summary request |
+| `SMARTSH_OLLAMA_MAX_INPUT_CHARS` | `3500` | Max output chars sent to Ollama |
 
 ### Policy File (`.smartsh-policy.yaml`)
 
@@ -373,7 +384,7 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
-After tag push, GitHub Actions builds artifacts and publishes the GitHub Release automatically.
+After tag push, GitHub Actions should build artifacts and publish the GitHub Release automatically.
 
 ### Manual fallback (if needed)
 
@@ -386,6 +397,20 @@ After tag push, GitHub Actions builds artifacts and publishes the GitHub Release
 ```
 
 Then upload files from `dist/release/` to a GitHub Release manually.
+
+CLI fallback:
+
+```bash
+gh release create v0.1.1 \
+  dist/release/smartsh_darwin_amd64.tar.gz \
+  dist/release/smartsh_darwin_arm64.tar.gz \
+  dist/release/smartsh_linux_amd64.tar.gz \
+  dist/release/smartsh_linux_arm64.tar.gz \
+  dist/release/smartsh_windows_amd64.zip \
+  dist/release/checksums.txt \
+  --title v0.1.1 \
+  --generate-notes
+```
 
 ---
 
@@ -429,6 +454,13 @@ Blocked by default:
 - Recursive destructive operations
 
 The `--unsafe` flag or `require_approval` workflow is needed for risky operations. The agent must explicitly confirm.
+
+For Cursor/Claude MCP usage, prefer approval flow:
+
+- first call returns `status=needs_approval` with `approval_id`
+- then call `smartsh_approve` with `decision=yes` or `decision=no`
+
+Use `unsafe=true` only when you intentionally want to bypass interactive approval for risky commands.
 
 ---
 
