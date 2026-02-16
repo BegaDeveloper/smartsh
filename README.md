@@ -127,6 +127,8 @@ This generates ready-to-use config files in `~/.smartsh/`:
 | `agent-instructions.txt` | Paste into Cursor rules |
 | `config` | Runtime config (includes generated `SMARTSH_DAEMON_TOKEN`) |
 
+> Note for release installs (installed via `install.ps1`/`install.sh`): MCP config files are always generated. Tool wrapper JSON files may be skipped because integration shell scripts are not part of binary releases.
+
 Validate your local setup any time with:
 
 ```bash

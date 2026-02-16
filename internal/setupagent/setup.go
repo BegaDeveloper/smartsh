@@ -81,11 +81,17 @@ func Run(out io.Writer) error {
 		return err
 	}
 
-	if err := writeCursorTool(filepath.Join(outDir, "cursor-smartsh-tool.json"), cursorCommand); err != nil {
-		return err
+	cursorToolPath := filepath.Join(outDir, "cursor-smartsh-tool.json")
+	claudeToolPath := filepath.Join(outDir, "claude-smartsh-tool.json")
+	if strings.TrimSpace(cursorCommand) != "" {
+		if err := writeCursorTool(cursorToolPath, cursorCommand); err != nil {
+			return err
+		}
 	}
-	if err := writeClaudeTool(filepath.Join(outDir, "claude-smartsh-tool.json"), claudeCommand); err != nil {
-		return err
+	if strings.TrimSpace(claudeCommand) != "" {
+		if err := writeClaudeTool(claudeToolPath, claudeCommand); err != nil {
+			return err
+		}
 	}
 	if err := writeCursorMCP(filepath.Join(outDir, "cursor-smartsh-mcp.json"), mcpCommand, mcpArgs, daemonURL, daemonToken); err != nil {
 		return err
@@ -99,10 +105,18 @@ func Run(out io.Writer) error {
 
 	fmt.Fprintln(out, "")
 	fmt.Fprintln(out, "smartsh setup-agent complete.")
-	fmt.Fprintf(out, "Cursor tool file: %s\n", filepath.Join(outDir, "cursor-smartsh-tool.json"))
+	if strings.TrimSpace(cursorCommand) != "" {
+		fmt.Fprintf(out, "Cursor tool file: %s\n", cursorToolPath)
+	} else {
+		fmt.Fprintln(out, "Cursor tool file: skipped (integration wrapper scripts not available in release install)")
+	}
 	fmt.Fprintf(out, "Cursor MCP server file: %s\n", filepath.Join(outDir, "cursor-smartsh-mcp.json"))
 	fmt.Fprintf(out, "Cursor workspace mcp.json: %s\n", filepath.Join(outDir, "cursor-mcp.json"))
-	fmt.Fprintf(out, "Claude tool file: %s\n", filepath.Join(outDir, "claude-smartsh-tool.json"))
+	if strings.TrimSpace(claudeCommand) != "" {
+		fmt.Fprintf(out, "Claude tool file: %s\n", claudeToolPath)
+	} else {
+		fmt.Fprintln(out, "Claude tool file: skipped (integration wrapper scripts not available in release install)")
+	}
 	fmt.Fprintf(out, "Agent instruction snippet: %s\n", filepath.Join(outDir, "agent-instructions.txt"))
 	fmt.Fprintln(out, "")
 	fmt.Fprintln(out, "Minimal next step:")
@@ -200,7 +214,12 @@ func hasIntegrations(root string) bool {
 
 func detectWrapperPaths(rootDir string) (string, string, string, []string, error) {
 	if rootDir == "" {
-		return "", "", "", nil, fmt.Errorf("could not locate smartsh root; set SMARTSH_ROOT and rerun setup-agent")
+		// Release installs ship only smartsh/smartshd binaries (no scripts/integrations directory).
+		// In that mode we still generate MCP configs by calling "smartsh mcp".
+		if _, err := exec.LookPath("smartsh"); err == nil {
+			return "", "", "smartsh", []string{"mcp"}, nil
+		}
+		return "", "", "", nil, fmt.Errorf("could not locate smartsh root and smartsh binary not found in PATH")
 	}
 	if runtime.GOOS == "windows" {
 		mcpScript := filepath.Join(rootDir, "scripts", "integrations", "smartsh-mcp.ps1")
