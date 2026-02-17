@@ -74,7 +74,7 @@ ollama pull llama3.2:3b
 ### Windows (PowerShell)
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex; smartsh setup-agent"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex; & `"$env:LOCALAPPDATA\Programs\smartsh\smartsh.exe`" setup-agent; & `"$env:LOCALAPPDATA\Programs\smartsh\smartsh.exe`" doctor"
 ```
 
 ### Install via Go

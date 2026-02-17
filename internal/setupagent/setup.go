@@ -140,8 +140,8 @@ func ensureDaemon(daemonURL string, daemonToken string) error {
 	if isHTTPReady(daemonURL+"/health", daemonToken, 1*time.Second) {
 		return nil
 	}
-	if _, err := exec.LookPath("smartshd"); err == nil {
-		if startError := startDetached("smartshd"); startError == nil {
+	for _, daemonCommand := range daemonStartCandidates() {
+		if startError := startDetachedCommand(daemonCommand); startError == nil {
 			if waitHTTPReady(daemonURL+"/health", daemonToken, 6*time.Second) {
 				return nil
 			}
@@ -516,6 +516,25 @@ func waitHTTPReady(url string, daemonToken string, timeout time.Duration) bool {
 func startDetached(name string, args ...string) error {
 	command := exec.Command(name, args...)
 	return startDetachedCommand(command)
+}
+
+func daemonStartCandidates() []*exec.Cmd {
+	candidates := make([]*exec.Cmd, 0, 3)
+	if executablePath, err := os.Executable(); err == nil {
+		executableDir := filepath.Dir(executablePath)
+		daemonName := "smartshd"
+		if runtime.GOOS == "windows" {
+			daemonName = "smartshd.exe"
+		}
+		daemonPath := filepath.Join(executableDir, daemonName)
+		if info, statErr := os.Stat(daemonPath); statErr == nil && !info.IsDir() {
+			candidates = append(candidates, exec.Command(daemonPath))
+		}
+	}
+	if daemonBinaryPath, err := exec.LookPath("smartshd"); err == nil {
+		candidates = append(candidates, exec.Command(daemonBinaryPath))
+	}
+	return candidates
 }
 
 func startDetachedCommand(command *exec.Cmd) error {
