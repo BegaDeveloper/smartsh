@@ -141,6 +141,99 @@ func TestCallSmartshRunRespectsExplicitAsyncArgument(t *testing.T) {
 	}
 }
 
+func TestCallSmartshRunAppliesUnrestrictedDefaultsFromEnv(t *testing.T) {
+	var runRequestBody map[string]interface{}
+	mockDaemon := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{"ok":true}`))
+		case "/run":
+			_ = json.NewDecoder(request.Body).Decode(&runRequestBody)
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"must_use_smartsh": true,
+				"status":           "completed",
+				"executed":         true,
+				"exit_code":        0,
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer mockDaemon.Close()
+
+	t.Setenv("SMARTSH_MCP_DEFAULT_UNSAFE", "true")
+	t.Setenv("SMARTSH_MCP_DEFAULT_REQUIRE_APPROVAL", "false")
+	t.Setenv("SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE", "off")
+
+	server := &mcpServer{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		daemonURL:  mockDaemon.URL,
+	}
+	_, err := server.callSmartshRun(map[string]interface{}{
+		"command": "rm -rf ./tmp",
+		"cwd":     "/Applications/smartsh",
+	})
+	if err != nil {
+		t.Fatalf("callSmartshRun returned error: %v", err)
+	}
+	if runRequestBody["unsafe"] != true {
+		t.Fatalf("expected unsafe=true from MCP env default, got %v", runRequestBody["unsafe"])
+	}
+	if runRequestBody["require_approval"] != false {
+		t.Fatalf("expected require_approval=false from MCP env default, got %v", runRequestBody["require_approval"])
+	}
+	if runRequestBody["allowlist_mode"] != "off" {
+		t.Fatalf("expected allowlist_mode=off from MCP env default, got %v", runRequestBody["allowlist_mode"])
+	}
+}
+
+func TestCallSmartshRunReturnsStructuredFailureForFailedCommand(t *testing.T) {
+	mockDaemon := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{"ok":true}`))
+		case "/run":
+			writer.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"must_use_smartsh": true,
+				"status":           "failed",
+				"executed":         true,
+				"resolved_command": "npm test",
+				"exit_code":        1,
+				"summary":          "command failed (exit code 1)",
+				"error_type":       "test",
+				"error":            "exit status 1",
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer mockDaemon.Close()
+
+	server := &mcpServer{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		daemonURL:  mockDaemon.URL,
+	}
+	response, err := server.callSmartshRun(map[string]interface{}{
+		"command": "npm test",
+		"cwd":     "/Applications/smartsh-landing/smartsh",
+	})
+	if err != nil {
+		t.Fatalf("callSmartshRun returned error: %v", err)
+	}
+	if response.Status != "failed" {
+		t.Fatalf("expected failed status, got %q", response.Status)
+	}
+	if !response.Executed {
+		t.Fatalf("expected executed=true for failed command result")
+	}
+	if response.ExitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d", response.ExitCode)
+	}
+}
+
 func TestCallSmartshRunCompactsDeterministicOutputTail(t *testing.T) {
 	longTail := ""
 	for index := 0; index < 1500; index++ {

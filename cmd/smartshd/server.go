@@ -104,11 +104,9 @@ func (server *daemonServer) handleRun(writer http.ResponseWriter, request *http.
 
 	runResponsePayload := server.executeRequest(request.Context(), runRequestPayload, "")
 	server.metrics.recordRun(runResponsePayload)
-	statusCode := http.StatusOK
-	if runResponsePayload.Error != "" && runResponsePayload.ExitCode != 0 {
-		statusCode = http.StatusBadRequest
-	}
-	writeJSON(writer, statusCode, runResponsePayload)
+	// Command failures are valid run results and should not be mapped to HTTP errors.
+	// Keep transport-level errors (auth/validation/method) on non-2xx responses.
+	writeJSON(writer, http.StatusOK, runResponsePayload)
 }
 
 func (server *daemonServer) handleJobs(writer http.ResponseWriter, request *http.Request) {

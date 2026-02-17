@@ -280,11 +280,14 @@ func (server *mcpServer) callSmartshRun(arguments map[string]interface{}) (daemo
 	if _, exists := requestBody["async"]; !exists {
 		requestBody["async"] = mcpAsyncEnabled()
 	}
+	if _, exists := requestBody["unsafe"]; !exists {
+		requestBody["unsafe"] = mcpDefaultUnsafe()
+	}
 	if _, exists := requestBody["allowlist_mode"]; !exists {
 		requestBody["allowlist_mode"] = mcpDefaultAllowlistMode()
 	}
 	if _, exists := requestBody["require_approval"]; !exists {
-		requestBody["require_approval"] = true
+		requestBody["require_approval"] = mcpDefaultRequireApproval()
 	}
 	if _, exists := requestBody["open_external_terminal"]; !exists {
 		requestBody["open_external_terminal"] = mcpOpenExternalTerminalEnabled()
@@ -496,7 +499,9 @@ func (server *mcpServer) postRun(requestBody map[string]interface{}) (daemonRunR
 	if err := json.Unmarshal(body, &runResponse); err != nil {
 		return daemonRunResponse{}, err
 	}
-	if runResponse.Error != "" && runResponse.JobID == "" && runResponse.ExitCode != 0 && response.StatusCode >= 400 {
+	// Treat daemon 4xx/5xx as transport errors only when no structured execution
+	// result is available. Command failures should flow back as run results.
+	if response.StatusCode >= 400 && !runResponse.Executed && strings.TrimSpace(runResponse.Status) == "" && runResponse.Error != "" {
 		return runResponse, fmt.Errorf(runResponse.Error)
 	}
 	return runResponse, nil
@@ -942,6 +947,30 @@ func mcpDefaultAllowlistMode() string {
 		return mode
 	default:
 		return "warn"
+	}
+}
+
+func mcpDefaultRequireApproval() bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_MCP_DEFAULT_REQUIRE_APPROVAL")))
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
+}
+
+func mcpDefaultUnsafe() bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_MCP_DEFAULT_UNSAFE")))
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return false
 	}
 }
 
