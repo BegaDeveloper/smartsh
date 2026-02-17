@@ -48,6 +48,30 @@ func TestDeterministicSummary_TypeScript(t *testing.T) {
 	}
 }
 
+func TestResolveSummary_SuccessIgnoresOllamaFailureText(t *testing.T) {
+	mockOllama := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"response": `{"summary":"Terminal command execution failed","error_type":"runtime","primary_error":"synthetic","next_action":"retry","failed_files":[]}`,
+		})
+	}))
+	defer mockOllama.Close()
+
+	t.Setenv("SMARTSH_SUMMARY_PROVIDER", "ollama")
+	t.Setenv("SMARTSH_OLLAMA_REQUIRED", "true")
+	t.Setenv("SMARTSH_OLLAMA_URL", mockOllama.URL)
+
+	result := resolveSummary("ls -1", 0, "ok", nil, nil)
+	if result.Source != "deterministic" {
+		t.Fatalf("expected deterministic source for success, got %q", result.Source)
+	}
+	if result.Summary.Summary != "command completed successfully" {
+		t.Fatalf("expected successful deterministic summary, got %q", result.Summary.Summary)
+	}
+	if result.Summary.ErrorType != "none" {
+		t.Fatalf("expected error_type none, got %q", result.Summary.ErrorType)
+	}
+}
+
 func TestJobStorePersistence(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "smartshd.db")

@@ -69,7 +69,7 @@ payload = {
     "command": command,
     "cwd": os.getcwd(),
     "async": os.getenv("SMARTSH_ASYNC", "0") == "1",
-    "open_external_terminal": os.getenv("SMARTSH_OPEN_EXTERNAL_TERMINAL", "1").strip().lower() in ("1", "true", "yes", "on"),
+    "open_external_terminal": os.getenv("SMARTSH_OPEN_EXTERNAL_TERMINAL", "0").strip().lower() in ("1", "true", "yes", "on"),
     "allowlist_mode": os.getenv("SMARTSH_ALLOWLIST_MODE", "warn").strip() or "warn",
     "require_approval": os.getenv("SMARTSH_REQUIRE_APPROVAL", "1").strip().lower() in ("1", "true", "yes", "on"),
     "terminal_session_key": os.getenv("SMARTSH_TERMINAL_SESSION_KEY", "cursor-main").strip() or "cursor-main",
@@ -111,7 +111,7 @@ parsed.setdefault("cwd", os.getcwd())
 if "async" not in parsed:
     parsed["async"] = os.getenv("SMARTSH_ASYNC", "0") == "1"
 if "open_external_terminal" not in parsed:
-    parsed["open_external_terminal"] = os.getenv("SMARTSH_OPEN_EXTERNAL_TERMINAL", "1").strip().lower() in ("1", "true", "yes", "on")
+    parsed["open_external_terminal"] = os.getenv("SMARTSH_OPEN_EXTERNAL_TERMINAL", "0").strip().lower() in ("1", "true", "yes", "on")
 if "allowlist_mode" not in parsed:
     parsed["allowlist_mode"] = os.getenv("SMARTSH_ALLOWLIST_MODE", "warn").strip() or "warn"
 if "require_approval" not in parsed:

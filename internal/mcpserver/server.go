@@ -365,7 +365,9 @@ func (server *mcpServer) waitForJobIfNeeded(initial daemonRunResponse, maxWaitSe
 			return job, nil
 		}
 	}
-	if strings.TrimSpace(lastKnown.Summary) == "" {
+	if strings.TrimSpace(lastKnown.Summary) == "" ||
+		strings.EqualFold(strings.TrimSpace(lastKnown.Summary), "job accepted") ||
+		strings.EqualFold(strings.TrimSpace(lastKnown.Summary), "job running") {
 		lastKnown.Summary = "job still running; use job_id to poll status"
 	}
 	server.decorateApprovalPrompt(&lastKnown)

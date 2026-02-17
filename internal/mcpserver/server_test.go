@@ -236,6 +236,56 @@ func TestCallSmartshRunReturnsLatestRunningWhenMaxWaitReached(t *testing.T) {
 	}
 }
 
+func TestCallSmartshRunRunningSummaryOverridesJobAcceptedHint(t *testing.T) {
+	mockDaemon := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{"ok":true}`))
+		case "/run":
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"must_use_smartsh": true,
+				"job_id":           "job-running-hint",
+				"status":           "running",
+				"executed":         false,
+				"exit_code":        0,
+				"summary":          "job accepted",
+			})
+		case "/jobs/job-running-hint":
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"must_use_smartsh": true,
+				"job_id":           "job-running-hint",
+				"status":           "running",
+				"executed":         false,
+				"exit_code":        0,
+				"summary":          "job accepted",
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer mockDaemon.Close()
+
+	server := &mcpServer{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		daemonURL:  mockDaemon.URL,
+	}
+	response, err := server.callSmartshRun(map[string]interface{}{
+		"command":          "ls -1",
+		"cwd":              "/Applications/smartsh",
+		"mcp_max_wait_sec": 1,
+	})
+	if err != nil {
+		t.Fatalf("callSmartshRun returned error: %v", err)
+	}
+	if response.Status != "running" {
+		t.Fatalf("expected running status after max wait, got %q", response.Status)
+	}
+	if response.Summary != "job still running; use job_id to poll status" {
+		t.Fatalf("expected running summary hint, got %q", response.Summary)
+	}
+}
+
 func TestCallSmartshRunPollsUntilCompletedWithinWait(t *testing.T) {
 	var jobsPollCount int32
 	mockDaemon := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

@@ -348,6 +348,7 @@ func (server *daemonServer) executeJob(jobID string) {
 		return
 	}
 	job.Result.Status = "running"
+	job.Result.Summary = "job running"
 	job.UpdatedAt = time.Now()
 	_ = server.store.Save(*job)
 	server.publish(job.ID, job.Result)

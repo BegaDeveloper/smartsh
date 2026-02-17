@@ -19,6 +19,10 @@ type summaryProviderResult struct {
 
 func resolveSummary(command string, exitCode int, output string, runErr error, client *http.Client) summaryProviderResult {
 	deterministic := deterministicSummary(command, exitCode, output, runErr)
+	// Never let model output rewrite successful executions.
+	if exitCode == 0 && runErr == nil {
+		return summaryProviderResult{Summary: deterministic, Source: "deterministic"}
+	}
 	provider := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_SUMMARY_PROVIDER")))
 	if provider == "" {
 		provider = "ollama"
