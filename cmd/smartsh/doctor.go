@@ -49,7 +49,7 @@ func runDoctor(output io.Writer, errorOutput io.Writer) error {
 		return fmt.Errorf("one or more doctor checks failed")
 	}
 	fmt.Fprintln(output, "")
-	fmt.Fprintln(output, "smartsh doctor passed: daemon auth, ollama, and MCP config look good.")
+	fmt.Fprintln(output, "smartsh doctor passed: all checks OK.")
 	return nil
 }
 
@@ -98,7 +98,7 @@ func checkDaemonHealth(configValues map[string]string) doctorCheck {
 		return doctorCheck{
 			name:    "daemon health",
 			ok:      false,
-			details: fmt.Sprintf("cannot reach daemon at %s/health (%v)", daemonURL, err),
+			details: fmt.Sprintf("cannot reach daemon at %s/health (daemon will auto-start when Cursor/Claude calls smartsh mcp)", daemonURL),
 		}
 	}
 	defer response.Body.Close()
@@ -131,7 +131,7 @@ func checkOllamaHealthAndModel(configValues map[string]string) doctorCheck {
 		return doctorCheck{
 			name:    "ollama health/model",
 			ok:      false,
-			details: fmt.Sprintf("cannot reach ollama at %s (%v)", ollamaURL, err),
+			details: fmt.Sprintf("cannot reach ollama at %s (run: ollama serve)", ollamaURL),
 		}
 	}
 	defer response.Body.Close()
@@ -178,9 +178,8 @@ func checkGeneratedConfigFiles() doctorCheck {
 	}
 	baseDir := filepath.Join(homeDir, ".smartsh")
 	requiredFiles := []string{
-		filepath.Join(baseDir, "cursor-smartsh-mcp.json"),
 		filepath.Join(baseDir, "cursor-mcp.json"),
-		filepath.Join(baseDir, "claude-smartsh-tool.json"),
+		filepath.Join(baseDir, "claude-code-mcp.json"),
 		filepath.Join(baseDir, "agent-instructions.txt"),
 	}
 	for _, path := range requiredFiles {
@@ -189,21 +188,20 @@ func checkGeneratedConfigFiles() doctorCheck {
 			return doctorCheck{
 				name:    "mcp config files",
 				ok:      false,
-				details: fmt.Sprintf("missing %s (run smartsh setup-agent)", path),
+				details: fmt.Sprintf("missing %s (run: smartsh setup-agent)", filepath.Base(path)),
 			}
 		}
 		if info.Size() == 0 {
 			return doctorCheck{
 				name:    "mcp config files",
 				ok:      false,
-				details: fmt.Sprintf("empty file %s", path),
+				details: fmt.Sprintf("empty file %s", filepath.Base(path)),
 			}
 		}
 	}
 	jsonFiles := []string{
-		filepath.Join(baseDir, "cursor-smartsh-mcp.json"),
 		filepath.Join(baseDir, "cursor-mcp.json"),
-		filepath.Join(baseDir, "claude-smartsh-tool.json"),
+		filepath.Join(baseDir, "claude-code-mcp.json"),
 	}
 	for _, path := range jsonFiles {
 		raw, readErr := os.ReadFile(path)
@@ -211,7 +209,7 @@ func checkGeneratedConfigFiles() doctorCheck {
 			return doctorCheck{
 				name:    "mcp config files",
 				ok:      false,
-				details: fmt.Sprintf("read failed for %s: %v", path, readErr),
+				details: fmt.Sprintf("read failed for %s: %v", filepath.Base(path), readErr),
 			}
 		}
 		var payload any
@@ -219,14 +217,14 @@ func checkGeneratedConfigFiles() doctorCheck {
 			return doctorCheck{
 				name:    "mcp config files",
 				ok:      false,
-				details: fmt.Sprintf("invalid JSON in %s: %v", path, unmarshalErr),
+				details: fmt.Sprintf("invalid JSON in %s: %v", filepath.Base(path), unmarshalErr),
 			}
 		}
 	}
 	return doctorCheck{
 		name:    "mcp config files",
 		ok:      true,
-		details: "generated files exist and JSON is valid",
+		details: "cursor-mcp.json, claude-code-mcp.json, agent-instructions.txt exist and are valid",
 	}
 }
 

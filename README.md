@@ -26,58 +26,55 @@ When AI agents run terminal commands, they dump **huge raw logs** into context �
 
 - Runs commands through a local daemon (`smartshd`)
 - Returns **compact structured JSON** instead of raw output
+- Uses **Ollama** for intelligent summaries of failures
 - Applies **safety checks** before execution (blocks dangerous commands)
 - Supports **risk approval workflows** for destructive operations
 - Truncates output automatically for **massive token savings**
 
 ---
 
-## Quick Install (End Users)
+## Install (3 steps)
 
-### macOS / Linux (one command)
+### Step 1: Install Ollama (required)
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh \
-  | sh \
-  && smartsh setup-agent
-```
+smartsh uses Ollama for intelligent command output summaries. Install it first.
 
-> Auto-detects OS/CPU, downloads from latest release, verifies checksum, installs `smartsh` + `smartshd`, then `setup-agent` generates Cursor/Claude config files in `~/.smartsh/`.
-
-### Required: Ollama (always-on summaries)
-
-smartsh now defaults to Ollama-backed summaries. Install Ollama and pull the model:
+**macOS / Linux:**
 
 ```bash
-# macOS / Linux
 curl -fsSL https://ollama.com/install.sh | sh
 ollama serve
 ollama pull llama3.2:3b
 ```
 
-Windows:
+**Windows:**
 
-- Install Ollama from `https://ollama.com/download`
-- Then run:
+1. Download and install from https://ollama.com/download
+2. Then in PowerShell:
 
 ```powershell
 ollama serve
 ollama pull llama3.2:3b
 ```
 
-`smartsh setup-agent` now performs a strict preflight:
+### Step 2: Install smartsh
 
-- verifies Ollama is reachable at `SMARTSH_OLLAMA_URL` (default `http://127.0.0.1:11434`)
-- verifies `SMARTSH_OLLAMA_MODEL` exists locally (default `llama3.2:3b`)
-- fails fast with instructions if either check is missing
+**macOS / Linux:**
 
-### Windows (PowerShell)
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex; & `"$env:LOCALAPPDATA\Programs\smartsh\smartsh.exe`" setup-agent; & `"$env:LOCALAPPDATA\Programs\smartsh\smartsh.exe`" doctor"
+```bash
+curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh | sh
+smartsh setup-agent
 ```
 
-### Install via Go
+**Windows (PowerShell):**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex"
+$s = Join-Path $env:LOCALAPPDATA "Programs\smartsh\smartsh.exe"
+& $s setup-agent
+```
+
+**Install via Go:**
 
 ```bash
 go install github.com/BegaDeveloper/smartsh/cmd/smartsh@latest
@@ -85,70 +82,53 @@ go install github.com/BegaDeveloper/smartsh/cmd/smartshd@latest
 smartsh setup-agent
 ```
 
-### Manual download
+After `setup-agent` completes, you get these files in `~/.smartsh/`:
 
-Grab the right archive from [**Releases**](https://github.com/BegaDeveloper/smartsh/releases):
-
-| Platform | File |
+| File | Use with |
 |---|---|
-| macOS Apple Silicon (M1/M2/M3) | `smartsh_darwin_arm64.tar.gz` |
-| macOS Intel | `smartsh_darwin_amd64.tar.gz` |
-| Linux x64 | `smartsh_linux_amd64.tar.gz` |
-| Linux arm64 | `smartsh_linux_arm64.tar.gz` |
-| Windows x64 | `smartsh_windows_amd64.zip` |
+| `cursor-mcp.json` | **Cursor** |
+| `claude-code-mcp.json` | **Claude Code** |
+| `agent-instructions.txt` | Paste into Cursor/Claude rules |
 
-Direct latest asset URLs:
+### Step 3: Connect to Cursor or Claude Code
 
-```text
-https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_darwin_arm64.tar.gz
-https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_darwin_amd64.tar.gz
-https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_linux_amd64.tar.gz
-https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_linux_arm64.tar.gz
-https://github.com/BegaDeveloper/smartsh/releases/latest/download/smartsh_windows_amd64.zip
-```
+**For Cursor:**
 
----
-
-## Setup with Cursor
-
-After install, run:
+Copy `cursor-mcp.json` into your project:
 
 ```bash
-smartsh setup-agent
+# macOS / Linux
+cp ~/.smartsh/cursor-mcp.json /path/to/your/project/.cursor/mcp.json
+
+# Windows
+copy %USERPROFILE%\.smartsh\cursor-mcp.json C:\path\to\your\project\.cursor\mcp.json
 ```
 
-This generates ready-to-use config files in `~/.smartsh/`:
+Then paste `~/.smartsh/agent-instructions.txt` into Cursor → Settings → Rules.
 
-| File | Purpose |
-|---|---|
-| `cursor-smartsh-mcp.json` | MCP server config for Cursor |
-| `cursor-mcp.json` | Workspace `mcp.json` format |
-| `claude-smartsh-tool.json` | Claude Code tool config |
-| `agent-instructions.txt` | Paste into Cursor rules |
-| `config` | Runtime config (includes generated `SMARTSH_DAEMON_TOKEN`) |
+**For Claude Code:**
 
-> Note for release installs (installed via `install.ps1`/`install.sh`): MCP config files are always generated. Tool wrapper JSON files may be skipped because integration shell scripts are not part of binary releases.
+Copy `claude-code-mcp.json` as your Claude desktop config:
 
-Validate your local setup any time with:
+```bash
+# macOS / Linux
+cp ~/.smartsh/claude-code-mcp.json ~/.claude/claude_desktop_config.json
+
+# Windows
+copy %USERPROFILE%\.smartsh\claude-code-mcp.json %USERPROFILE%\.claude\claude_desktop_config.json
+```
+
+### Verify
 
 ```bash
 smartsh doctor
 ```
 
-`smartsh doctor` checks:
-- daemon auth/token
-- daemon health endpoint
-- ollama health + configured model presence
-- generated Cursor/Claude MCP config files
+---
 
-### Connect to Cursor
+## Generated MCP JSON (reference)
 
-1. Open **Cursor** → **Settings** → **Tools & MCP**
-2. Click **New MCP Server**
-3. Use values from `~/.smartsh/cursor-smartsh-mcp.json`
-4. Paste `~/.smartsh/agent-instructions.txt` into **Rules**
-
-**Or** drop `~/.smartsh/cursor-mcp.json` into your project as `.cursor/mcp.json`:
+If you prefer to set up manually, here's what the generated `cursor-mcp.json` / `claude-code-mcp.json` looks like:
 
 ```json
 {
@@ -158,10 +138,7 @@ smartsh doctor
       "args": ["mcp"],
       "env": {
         "SMARTSH_DAEMON_URL": "http://127.0.0.1:8787",
-        "SMARTSH_DAEMON_TOKEN": "<token-from-~/.smartsh/config>",
-        "SMARTSH_MCP_COMPACT_OUTPUT": "true",
-        "SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS": "400",
-        "SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL": "false",
+        "SMARTSH_DAEMON_TOKEN": "<auto-generated-token>",
         "SMARTSH_SUMMARY_PROVIDER": "ollama",
         "SMARTSH_OLLAMA_REQUIRED": "true",
         "SMARTSH_OLLAMA_URL": "http://127.0.0.1:11434",
@@ -172,19 +149,16 @@ smartsh doctor
 }
 ```
 
-### Connect to Claude Code
+> The token is generated automatically by `smartsh setup-agent` and stored in `~/.smartsh/config`.
 
-Use `~/.smartsh/claude-smartsh-tool.json` or add MCP server manually with command `smartsh` and arg `mcp`.
-
-### Rule snippet (recommended)
-
-Add this in your Cursor/Claude rules:
+### Rule snippet (paste into Cursor/Claude rules)
 
 ```text
-For command execution, always use smartsh_run (or smartsh-local_smartsh_run / smartsh_agent).
-Default to open_external_terminal=false for speed.
-Use open_external_terminal=true only for interactive/watch/TUI commands.
-Never use direct shell unless explicitly requested.
+For command execution, always use the smartsh MCP tool (smartsh_run).
+In some clients it appears as smartsh-local_smartsh_run.
+Never use direct shell execution unless explicitly requested by the user.
+Do not use run_terminal_cmd when the smartsh MCP tool is available.
+Prefer summarized tool output and avoid dumping full terminal logs.
 ```
 
 ---
@@ -200,7 +174,7 @@ Never use direct shell unless explicitly requested.
 
 1. **Agent sends command** via MCP tool (`smartsh_run`)
 2. **`smartsh mcp`** forwards to local daemon
-3. **`smartshd`** validates safety → executes → summarizes output
+3. **`smartshd`** validates safety → executes → summarizes via Ollama
 4. **Compact JSON** returned to agent (not raw logs)
 
 ### Example response
@@ -238,17 +212,12 @@ Compare that to 500+ lines of raw `tsc` output the agent would normally dump.
 - MCP compact mode enabled by default
 - Configurable tail size via `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS`
 
-### Smart Summarization
+### Ollama Summaries
 
-Ollama-backed summaries are default (`SMARTSH_SUMMARY_PROVIDER=ollama`), with deterministic parsing still available as fallback/override.
-
-Deterministic parsers support:
-
-- Jest / Vitest test output
-- Go test failures
-- TypeScript compiler errors
-- Maven / Gradle build failures
-- .NET build and test output
+- Ollama is the default summary provider
+- Sends only truncated, redacted output to local Ollama
+- Strict JSON response schema enforced
+- Falls back to deterministic parsing if Ollama is unavailable
 
 ### Daemon Capabilities
 
@@ -257,7 +226,7 @@ Deterministic parsers support:
 - SSE status streaming
 - PTY interactive sessions
 - Execution isolation (timeout, memory, CPU, env allowlist)
-- Token auth is required by default (`SMARTSH_DAEMON_TOKEN`)
+- Token auth required by default
 - Prometheus metrics at `/metrics`
 
 ---
@@ -269,91 +238,46 @@ Deterministic parsers support:
 | Variable | Default | Description |
 |---|---|---|
 | `SMARTSH_DAEMON_URL` | `http://127.0.0.1:8787` | Daemon address |
-| `SMARTSH_DAEMON_TOKEN` | *(auto-generated via `setup-agent`)* | Auth token for daemon requests (required unless auth is disabled) |
-| `SMARTSH_DAEMON_DISABLE_AUTH` | `false` | Disable daemon auth checks explicitly (not recommended) |
-| `SMARTSH_MCP_COMPACT_OUTPUT` | `true` | Enable compact MCP responses |
-| `SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE` | `warn` | Default allowlist mode when client does not set one |
-| `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS` | `600` | Max chars in output tail |
-| `SMARTSH_MCP_OPEN_EXTERNAL_TERMINAL` | `false` | Open external terminal for runs (`true` for interactive/TUI/watch tasks) |
+| `SMARTSH_DAEMON_TOKEN` | *(auto-generated)* | Auth token (required) |
+| `SMARTSH_DAEMON_DISABLE_AUTH` | `false` | Disable auth (not recommended) |
+| `SMARTSH_SUMMARY_PROVIDER` | `ollama` | `deterministic`, `ollama`, or `hybrid` |
+| `SMARTSH_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint |
+| `SMARTSH_OLLAMA_MODEL` | `llama3.2:3b` | Ollama model |
+| `SMARTSH_OLLAMA_REQUIRED` | `true` | Fail if Ollama unavailable |
+| `SMARTSH_OLLAMA_TIMEOUT_SEC` | `8` | Ollama request timeout |
+| `SMARTSH_MCP_COMPACT_OUTPUT` | `true` | Enable compact responses |
+| `SMARTSH_MCP_MAX_OUTPUT_TAIL_CHARS` | `600` | Max output tail chars |
 | `SMARTSH_DAEMON_ADDR` | `127.0.0.1:8787` | Daemon listen address |
-| `SMARTSH_DAEMON_DB` | *(auto)* | BoltDB path for job persistence |
-| `SMARTSH_SUMMARY_PROVIDER` | `ollama` | Summary provider (`deterministic`, `ollama`, `hybrid`) |
-| `SMARTSH_OLLAMA_REQUIRED` | `true` | Require Ollama summaries; if unavailable response is marked `ollama_unavailable` |
-| `SMARTSH_OLLAMA_URL` | `http://127.0.0.1:11434` | Ollama endpoint for model summaries |
-| `SMARTSH_OLLAMA_MODEL` | `llama3.2:3b` | Ollama model used for summaries |
-| `SMARTSH_OLLAMA_TIMEOUT_SEC` | `8` | Timeout for Ollama summary request |
-| `SMARTSH_OLLAMA_MAX_INPUT_CHARS` | `3500` | Max output chars sent to Ollama |
 
-### Policy File (`.smartsh-policy.yaml`)
+### Risky Commands
 
-```yaml
-version: 1
-enforce: true
-max_risk: medium
-allow_commands:
-  - "prefix:npm "
-  - "prefix:go "
-deny_commands:
-  - "re:(?i)rm\\s+-rf\\s+/"
-allow_paths:
-  - "/Users/you/workspace"
-allow_env:
-  - "PATH"
-  - "HOME"
-  - "CI"
-```
+When an agent tries to run a destructive command (e.g. `rm -rf`), smartsh returns `status=needs_approval` with an `approval_id`. The agent then calls `smartsh_approve` with `decision=yes` or `decision=no`.
 
-### Allowlist File (`.smartsh-allowlist`)
-
-```text
-# Exact match
-exact:npm test
-
-# Prefix match
-prefix:go test
-
-# Regex match
-re:^npm run (build|dev|test)$
-```
+Use `unsafe=true` in the tool call only when you want to bypass the approval step entirely.
 
 ---
 
-## API Reference
+## Manual Download
 
-### Daemon endpoints
-
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/health` | Health check |
-| `POST` | `/run` | Execute a command |
-| `GET` | `/jobs` | List recent jobs |
-| `GET` | `/jobs/:id` | Get job status |
-| `GET` | `/jobs/:id/stream` | SSE job status stream |
-| `POST` | `/approvals/:id` | Approve/reject risky command |
-| `POST` | `/sessions` | Create PTY session |
-| `GET` | `/sessions/:id` | Get session status |
-| `POST` | `/sessions/:id/input` | Send input to session |
-| `GET` | `/sessions/:id/stream` | SSE session output stream |
-| `POST` | `/sessions/:id/close` | Close session |
-| `GET` | `/metrics` | Prometheus metrics |
-
-### MCP tools
-
-| Tool | Description |
+| Platform | File |
 |---|---|
-| `smartsh_run` | Execute command through daemon |
-| `smartsh_approve` | Approve/reject pending risky command |
+| macOS Apple Silicon (M1/M2/M3) | `smartsh_darwin_arm64.tar.gz` |
+| macOS Intel | `smartsh_darwin_amd64.tar.gz` |
+| Linux x64 | `smartsh_linux_amd64.tar.gz` |
+| Linux arm64 | `smartsh_linux_arm64.tar.gz` |
+| Windows x64 | `smartsh_windows_amd64.zip` |
+
+Download from [**Releases**](https://github.com/BegaDeveloper/smartsh/releases/latest).
 
 ---
 
 ## Building from Source
 
 ```bash
-# Local build
 go build -o smartsh ./cmd/smartsh
 go build -o smartshd ./cmd/smartshd
 
-# Cross-platform (produces dist/release/*.tar.gz + *.zip)
+# Cross-platform release archives
 ./scripts/build.sh        # macOS/Linux
 .\scripts\build.ps1       # Windows
 ```
@@ -362,107 +286,28 @@ go build -o smartshd ./cmd/smartshd
 
 ## Release Flow (Maintainers)
 
-You usually do **not** need to manually upload release files.
-
-This repository already has a release workflow:
-
-- GitHub Action: `.github/workflows/release.yml`
-- Trigger: push a tag matching `v*`
-- Publisher: GoReleaser (`.goreleaser.yaml`)
-
-### Standard release process
-
 ```bash
-# 1) ensure everything is pushed on main
-git checkout main
-git pull
-
-# 2) optional local build/test check
+git checkout main && git pull
 go test ./...
 ./scripts/build.sh
-
-# 3) create and push a version tag
-git tag v0.1.1
-git push origin v0.1.1
+git add . && git commit -m "release: vX.Y.Z"
+git push origin main
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-After tag push, GitHub Actions should build artifacts and publish the GitHub Release automatically.
-
-### Manual fallback (if needed)
+If auto-release does not trigger:
 
 ```bash
-# Build archives + checksums locally
-./scripts/build.sh
-
-# Artifacts are in:
-# dist/release/
-```
-
-Then upload files from `dist/release/` to a GitHub Release manually.
-
-CLI fallback:
-
-```bash
-gh release create v0.1.1 \
+gh release create vX.Y.Z \
   dist/release/smartsh_darwin_amd64.tar.gz \
   dist/release/smartsh_darwin_arm64.tar.gz \
   dist/release/smartsh_linux_amd64.tar.gz \
   dist/release/smartsh_linux_arm64.tar.gz \
   dist/release/smartsh_windows_amd64.zip \
   dist/release/checksums.txt \
-  --title v0.1.1 \
-  --generate-notes
+  --title vX.Y.Z --generate-notes
 ```
-
----
-
-## Service Install
-
-Install and start `smartshd` as a user service:
-
-```bash
-smartshd install-service
-```
-
-- macOS: installs a `launchd` agent
-- Linux: installs a `systemd --user` service
-- Windows: installs a Task Scheduler task
-
----
-
-## Project Structure
-
-```text
-cmd/smartsh/          CLI entry point (MCP server + setup-agent)
-cmd/smartshd/         Local execution daemon
-internal/mcpserver/   MCP JSON-RPC server implementation
-internal/security/    Safety checks, allowlist, command assessment
-internal/setupagent/  Config file generator for Cursor/Claude
-scripts/
-  build.sh            Cross-platform build script
-  install.sh          Auto-detect installer (macOS/Linux)
-  install.ps1         Installer (Windows)
-  integrations/       Wrapper scripts for Cursor/Claude
-```
-
----
-
-## Safety Notes
-
-Blocked by default:
-- System wipe commands
-- Privilege escalation
-- Pipe-to-shell patterns
-- Recursive destructive operations
-
-The `--unsafe` flag or `require_approval` workflow is needed for risky operations. The agent must explicitly confirm.
-
-For Cursor/Claude MCP usage, prefer approval flow:
-
-- first call returns `status=needs_approval` with `approval_id`
-- then call `smartsh_approve` with `decision=yes` or `decision=no`
-
-Use `unsafe=true` only when you intentionally want to bypass interactive approval for risky commands.
 
 ---
 
