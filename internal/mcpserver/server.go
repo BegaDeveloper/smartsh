@@ -23,6 +23,7 @@ const (
 	defaultRunTimeoutSec         = 180
 	defaultMCPMaxWaitSec         = 25
 	defaultMCPMaxOutputTailChars = 600
+	defaultMCPHTTPTimeoutSec     = 300
 )
 
 type rpcRequest struct {
@@ -102,7 +103,7 @@ func Run() error {
 	server := &mcpServer{
 		reader:      bufio.NewReader(os.Stdin),
 		writer:      bufio.NewWriter(os.Stdout),
-		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		httpClient:  &http.Client{Timeout: mcpHTTPTimeout()},
 		daemonURL:   daemonURLFromEnv(),
 		daemonToken: resolveDaemonToken(configValues),
 	}
@@ -987,4 +988,16 @@ func mcpAsyncEnabled() bool {
 	default:
 		return false
 	}
+}
+
+func mcpHTTPTimeout() time.Duration {
+	raw := strings.TrimSpace(os.Getenv("SMARTSH_MCP_HTTP_TIMEOUT_SEC"))
+	if raw == "" {
+		return time.Duration(defaultMCPHTTPTimeoutSec) * time.Second
+	}
+	parsed, err := strconv.Atoi(raw)
+	if err != nil || parsed <= 0 {
+		return time.Duration(defaultMCPHTTPTimeoutSec) * time.Second
+	}
+	return time.Duration(parsed) * time.Second
 }
