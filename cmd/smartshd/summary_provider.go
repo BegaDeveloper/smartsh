@@ -19,21 +19,27 @@ type summaryProviderResult struct {
 
 func resolveSummary(command string, exitCode int, output string, runErr error, client *http.Client) summaryProviderResult {
 	deterministic := deterministicSummary(command, exitCode, output, runErr)
-	// Never let model output rewrite successful executions.
-	if exitCode == 0 && runErr == nil {
-		return summaryProviderResult{Summary: deterministic, Source: "deterministic"}
-	}
+	successfulRun := exitCode == 0 && runErr == nil
 	provider := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_SUMMARY_PROVIDER")))
 	if provider == "" {
 		provider = "ollama"
 	}
 	ollamaRequired := parseEnvBoolDefault("SMARTSH_OLLAMA_REQUIRED", true)
+	ollamaAlways := parseEnvBoolDefault("SMARTSH_OLLAMA_ALWAYS", false)
+	if successfulRun && !ollamaAlways {
+		// Default behavior: keep successful command summaries deterministic.
+		return summaryProviderResult{Summary: deterministic, Source: "deterministic"}
+	}
 	switch provider {
 	case "deterministic":
 		return summaryProviderResult{Summary: deterministic, Source: "deterministic"}
 	case "ollama":
 		ollamaSummary, ok, failureReason := ollamaSummaryForOutput(command, exitCode, output, deterministic, client)
 		if ok {
+			if successfulRun {
+				ollamaSummary.ErrorType = "none"
+				ollamaSummary.PrimaryError = ""
+			}
 			return summaryProviderResult{Summary: ollamaSummary, Source: "ollama"}
 		}
 		if ollamaRequired {
@@ -134,10 +140,11 @@ func ollamaSummaryForOutput(command string, exitCode int, output string, determi
 }
 
 func buildOllamaPrompt(command string, exitCode int, outputTail string) string {
-	return "You are summarizing terminal failures for an AI coding agent.\n" +
+	return "You are summarizing terminal command results for an AI coding agent.\n" +
 		"Return ONLY compact JSON with keys: summary,error_type,primary_error,next_action,failed_files.\n" +
 		"error_type must be one of: none,compile,test,dependency,runtime,policy.\n" +
 		"failed_files must be an array of file path strings (or empty array).\n" +
+		"If exit_code is 0, set error_type to none and keep summary concise.\n" +
 		"Do not include markdown.\n\n" +
 		"command: " + command + "\n" +
 		"exit_code: " + strconv.Itoa(exitCode) + "\n" +

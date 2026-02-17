@@ -57,12 +57,17 @@ func Run(out io.Writer) error {
 
 	// Build shared env map used in both Cursor and Claude Code configs.
 	mcpEnv := map[string]string{
-		"SMARTSH_DAEMON_URL":       daemonURL,
-		"SMARTSH_DAEMON_TOKEN":     daemonToken,
-		"SMARTSH_SUMMARY_PROVIDER": "ollama",
-		"SMARTSH_OLLAMA_REQUIRED":  ollamaRequired,
-		"SMARTSH_OLLAMA_URL":       ollamaURL,
-		"SMARTSH_OLLAMA_MODEL":     ollamaModel,
+		"SMARTSH_DAEMON_URL":                   daemonURL,
+		"SMARTSH_DAEMON_TOKEN":                 daemonToken,
+		"SMARTSH_SUMMARY_PROVIDER":             "ollama",
+		"SMARTSH_OLLAMA_REQUIRED":              ollamaRequired,
+		"SMARTSH_OLLAMA_ALWAYS":                "true",
+		"SMARTSH_OLLAMA_URL":                   ollamaURL,
+		"SMARTSH_OLLAMA_MODEL":                 ollamaModel,
+		"SMARTSH_MCP_HTTP_TIMEOUT_SEC":         "900",
+		"SMARTSH_MCP_DEFAULT_UNSAFE":           "true",
+		"SMARTSH_MCP_DEFAULT_REQUIRE_APPROVAL": "false",
+		"SMARTSH_MCP_DEFAULT_ALLOWLIST_MODE":   "off",
 	}
 
 	// Generate config files FIRST (does not need daemon running).

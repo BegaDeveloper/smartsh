@@ -72,6 +72,31 @@ func TestResolveSummary_SuccessIgnoresOllamaFailureText(t *testing.T) {
 	}
 }
 
+func TestResolveSummary_SuccessUsesOllamaWhenAlwaysEnabled(t *testing.T) {
+	mockOllama := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_ = json.NewEncoder(writer).Encode(map[string]any{
+			"response": `{"summary":"directory listing completed","error_type":"none","primary_error":"","next_action":"","failed_files":[]}`,
+		})
+	}))
+	defer mockOllama.Close()
+
+	t.Setenv("SMARTSH_SUMMARY_PROVIDER", "ollama")
+	t.Setenv("SMARTSH_OLLAMA_REQUIRED", "true")
+	t.Setenv("SMARTSH_OLLAMA_ALWAYS", "true")
+	t.Setenv("SMARTSH_OLLAMA_URL", mockOllama.URL)
+
+	result := resolveSummary("ls -1", 0, "ok", nil, nil)
+	if result.Source != "ollama" {
+		t.Fatalf("expected ollama source when SMARTSH_OLLAMA_ALWAYS=true, got %q", result.Source)
+	}
+	if result.Summary.ErrorType != "none" {
+		t.Fatalf("expected error_type none, got %q", result.Summary.ErrorType)
+	}
+	if strings.TrimSpace(result.Summary.Summary) == "" {
+		t.Fatalf("expected non-empty success summary")
+	}
+}
+
 func TestJobStorePersistence(t *testing.T) {
 	tempDir := t.TempDir()
 	dbPath := filepath.Join(tempDir, "smartshd.db")
