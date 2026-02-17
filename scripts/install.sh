@@ -30,7 +30,6 @@ if [ "$OS" != "darwin" ] && [ "$OS" != "linux" ]; then
   exit 1
 fi
 
-ASSET="smartsh_${OS}_${ARCH}.tar.gz"
 CHECKSUMS="checksums.txt"
 
 if [ "$VERSION" = "latest" ]; then
@@ -55,13 +54,37 @@ if [ "$(id -u)" -ne 0 ] && [ ! -w "$INSTALL_DIR" ]; then
   fi
 fi
 
+# Support both underscore and hyphen artifact naming styles.
+ASSET_CANDIDATES="
+smartsh_${OS}_${ARCH}.tar.gz
+smartsh-${OS}-${ARCH}.tar.gz
+"
+
+ASSET=""
+for candidate in $ASSET_CANDIDATES; do
+  if curl -fsI "${BASE_URL}/${candidate}" >/dev/null 2>&1; then
+    ASSET="$candidate"
+    break
+  fi
+done
+
+if [ -z "$ASSET" ]; then
+  echo "No compatible release asset found for OS=${OS} ARCH=${ARCH}" >&2
+  exit 1
+fi
+
 echo "Downloading ${BASE_URL}/${ASSET}"
 curl -fLsS "${BASE_URL}/${ASSET}" -o "${TMP_DIR}/${ASSET}"
 curl -fLsS "${BASE_URL}/${CHECKSUMS}" -o "${TMP_DIR}/${CHECKSUMS}"
 
+# Allow checksum entry to use either naming style.
+alt_asset="$(printf "%s" "$ASSET" | tr '_-' '-_')"
 expected="$(grep "  ${ASSET}\$" "${TMP_DIR}/${CHECKSUMS}" | awk '{print $1}' || true)"
 if [ -z "$expected" ]; then
-  echo "Checksum entry not found for ${ASSET} in ${CHECKSUMS}"
+  expected="$(grep "  ${alt_asset}\$" "${TMP_DIR}/${CHECKSUMS}" | awk '{print $1}' || true)"
+fi
+if [ -z "$expected" ]; then
+  echo "Checksum entry not found for ${ASSET} in ${CHECKSUMS}" >&2
   exit 1
 fi
 

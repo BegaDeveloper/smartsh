@@ -7,7 +7,6 @@ $InstallDir = if ($env:SMARTSH_INSTALL_DIR) { $env:SMARTSH_INSTALL_DIR } else { 
 $Components = if ($env:SMARTSH_COMPONENTS) { $env:SMARTSH_COMPONENTS } else { "smartsh smartshd" }
 
 $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
-$Asset = "smartsh_windows_$Arch.zip"
 $Checksums = "checksums.txt"
 
 $BaseUrl = if ($Version -eq "latest") {
@@ -15,7 +14,6 @@ $BaseUrl = if ($Version -eq "latest") {
 } else {
     "https://github.com/$Repo/releases/download/$Version"
 }
-$ZipUrl = "$BaseUrl/$Asset"
 $ChecksumsUrl = "$BaseUrl/$Checksums"
 
 if (-not (Test-Path $InstallDir)) {
@@ -26,8 +24,29 @@ $TempDir = Join-Path $env:TEMP ("smartsh-install-" + [Guid]::NewGuid().ToString(
 New-Item -ItemType Directory -Path $TempDir | Out-Null
 
 try {
+    # Support both underscore and hyphen artifact naming styles.
+    $AssetCandidates = @(
+        "smartsh_windows_$Arch.zip",
+        "smartsh-windows-$Arch.zip"
+    )
+    $Asset = $null
+    foreach ($Candidate in $AssetCandidates) {
+        $ProbeUrl = "$BaseUrl/$Candidate"
+        try {
+            Invoke-WebRequest -Method Head -Uri $ProbeUrl | Out-Null
+            $Asset = $Candidate
+            break
+        } catch {
+            # Try next candidate.
+        }
+    }
+    if (-not $Asset) {
+        throw "No compatible release asset found for windows/$Arch"
+    }
+
     $ZipPath = Join-Path $TempDir $Asset
     $ChecksumsPath = Join-Path $TempDir $Checksums
+    $ZipUrl = "$BaseUrl/$Asset"
 
     Write-Host "Downloading $ZipUrl"
     Invoke-WebRequest -Uri $ZipUrl -OutFile $ZipPath
@@ -35,6 +54,10 @@ try {
     Invoke-WebRequest -Uri $ChecksumsUrl -OutFile $ChecksumsPath
 
     $ExpectedLine = (Get-Content $ChecksumsPath | Select-String -SimpleMatch ("  " + $Asset) | Select-Object -First 1).Line
+    if (-not $ExpectedLine) {
+        $AltAsset = if ($Asset -like "*_*") { $Asset -replace "_", "-" } else { $Asset -replace "-", "_" }
+        $ExpectedLine = (Get-Content $ChecksumsPath | Select-String -SimpleMatch ("  " + $AltAsset) | Select-Object -First 1).Line
+    }
     if (-not $ExpectedLine) {
         throw "Checksum entry not found for $Asset in $Checksums"
     }

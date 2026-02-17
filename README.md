@@ -59,6 +59,8 @@ ollama pull llama3.2:3b
 
 ### Step 2: Install smartsh
 
+If Ollama is already installed, this is the only terminal command users need to run for smartsh installation.
+
 **macOS / Linux:**
 
 ```bash
