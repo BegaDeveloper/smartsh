@@ -71,15 +71,9 @@ func Run(out io.Writer) error {
 		return err
 	}
 
-	if err := ensureDaemon(daemonURL, daemonToken); err != nil {
-		return err
-	}
-
+	// Generate all config files FIRST (does not need daemon running).
 	rootDir := detectRootDir()
-	cursorCommand, claudeCommand, mcpCommand, mcpArgs, err := detectWrapperPaths(rootDir)
-	if err != nil {
-		return err
-	}
+	cursorCommand, claudeCommand, mcpCommand, mcpArgs, _ := detectWrapperPaths(rootDir)
 
 	cursorToolPath := filepath.Join(outDir, "cursor-smartsh-tool.json")
 	claudeToolPath := filepath.Join(outDir, "claude-smartsh-tool.json")
@@ -103,25 +97,37 @@ func Run(out io.Writer) error {
 		return err
 	}
 
+	// Try to start daemon as a convenience (not required for config generation).
+	daemonOK := false
+	if daemonErr := ensureDaemon(daemonURL, daemonToken); daemonErr != nil {
+		fmt.Fprintf(out, "\n[WARN] could not start smartshd: %v\n", daemonErr)
+		fmt.Fprintln(out, "  Config files were generated successfully.")
+		fmt.Fprintln(out, "  The daemon will start automatically when Cursor/Claude invokes the MCP tool.")
+		fmt.Fprintln(out, "  Or start it manually: smartshd (or smartshd.exe on Windows)")
+	} else {
+		daemonOK = true
+	}
+
 	fmt.Fprintln(out, "")
 	fmt.Fprintln(out, "smartsh setup-agent complete.")
 	if strings.TrimSpace(cursorCommand) != "" {
 		fmt.Fprintf(out, "Cursor tool file: %s\n", cursorToolPath)
-	} else {
-		fmt.Fprintln(out, "Cursor tool file: skipped (integration wrapper scripts not available in release install)")
 	}
 	fmt.Fprintf(out, "Cursor MCP server file: %s\n", filepath.Join(outDir, "cursor-smartsh-mcp.json"))
 	fmt.Fprintf(out, "Cursor workspace mcp.json: %s\n", filepath.Join(outDir, "cursor-mcp.json"))
 	if strings.TrimSpace(claudeCommand) != "" {
 		fmt.Fprintf(out, "Claude tool file: %s\n", claudeToolPath)
-	} else {
-		fmt.Fprintln(out, "Claude tool file: skipped (integration wrapper scripts not available in release install)")
 	}
 	fmt.Fprintf(out, "Agent instruction snippet: %s\n", filepath.Join(outDir, "agent-instructions.txt"))
 	fmt.Fprintln(out, "")
-	fmt.Fprintln(out, "Minimal next step:")
-	fmt.Fprintln(out, "1) In Cursor Tools & MCP, click New MCP Server and use cursor-smartsh-mcp.json values.")
-	fmt.Fprintln(out, "2) Paste agent-instructions.txt into system instructions.")
+	if daemonOK {
+		fmt.Fprintln(out, "smartshd is running and ready.")
+	}
+	fmt.Fprintln(out, "Next steps:")
+	fmt.Fprintln(out, "1) In Cursor → Settings → Tools & MCP, click New MCP Server.")
+	fmt.Fprintln(out, "   Use values from cursor-smartsh-mcp.json.")
+	fmt.Fprintln(out, "2) Paste agent-instructions.txt into Cursor Rules.")
+	fmt.Fprintln(out, "3) Run: smartsh doctor")
 	return nil
 }
 
