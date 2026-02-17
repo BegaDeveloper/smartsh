@@ -116,7 +116,7 @@ func buildEnvWithPolicy(policy *projectPolicy, request runRequest) []string {
 	if len(allowedSet) == 0 {
 		for _, key := range defaultSafeEnvKeys() {
 			if value, exists := baseMap[key]; exists && !isDeniedEnvKey(key) {
-				result = append(result, key+"="+value)
+			result = append(result, key+"="+value)
 			}
 		}
 	} else {

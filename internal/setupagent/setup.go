@@ -137,32 +137,54 @@ func defaultOutputDir() (string, error) {
 }
 
 func ensureDaemon(daemonURL string, daemonToken string) error {
-	if isHTTPReady(daemonURL+"/health", daemonToken, 1*time.Second) {
+	if isHTTPReady(daemonURL+"/health", daemonToken, 2*time.Second) {
 		return nil
 	}
-	for _, daemonCommand := range daemonStartCandidates() {
-		if startError := startDetachedCommand(daemonCommand); startError == nil {
-			if waitHTTPReady(daemonURL+"/health", daemonToken, 6*time.Second) {
+
+	// Try starting smartshd from sibling binary or PATH.
+	candidates := daemonStartCandidates()
+	var lastStartErr error
+	for _, daemonCommand := range candidates {
+		// Pass token + disable-auth=false + addr via env so daemon can authorize health checks.
+		daemonCommand.Env = append(os.Environ(),
+			"SMARTSH_DAEMON_TOKEN="+daemonToken,
+			"SMARTSH_DAEMON_DISABLE_AUTH=false",
+		)
+		lastStartErr = startDetachedCommand(daemonCommand)
+		if lastStartErr == nil {
+			// Windows processes are slower to bind; wait up to 12 seconds.
+			if waitHTTPReady(daemonURL+"/health", daemonToken, 12*time.Second) {
 				return nil
 			}
 		}
 	}
+
+	// Fallback: try go run from source root (developer machines).
 	rootDir := detectRootDir()
-	if rootDir == "" {
-		return fmt.Errorf("smartshd is not reachable and smartsh project root was not found")
+	if rootDir != "" {
+		if _, err := exec.LookPath("go"); err == nil {
+			command := exec.Command("go", "run", filepath.Join(rootDir, "cmd/smartshd"))
+			command.Dir = rootDir
+			command.Env = append(os.Environ(),
+				"SMARTSH_DAEMON_TOKEN="+daemonToken,
+				"SMARTSH_DAEMON_DISABLE_AUTH=false",
+			)
+			if err := startDetachedCommand(command); err == nil {
+				if waitHTTPReady(daemonURL+"/health", daemonToken, 10*time.Second) {
+					return nil
+				}
+			}
+		}
 	}
-	if _, err := exec.LookPath("go"); err != nil {
-		return fmt.Errorf("smartshd is not reachable and go command is missing for fallback start")
-	}
-	command := exec.Command("go", "run", filepath.Join(rootDir, "cmd/smartshd"))
-	command.Dir = rootDir
-	if err := startDetachedCommand(command); err != nil {
-		return fmt.Errorf("failed to start smartshd: %w", err)
-	}
-	if !waitHTTPReady(daemonURL+"/health", daemonToken, 8*time.Second) {
-		return fmt.Errorf("smartshd did not become healthy at %s", daemonURL)
-	}
-	return nil
+
+	// Build a helpful error message.
+	logPath := filepath.Join(os.TempDir(), "smartsh-setup.log")
+	hint := fmt.Sprintf("smartshd could not be started.\n"+
+		"  tried %d candidate(s); last start error: %v\n"+
+		"  check daemon log: %s\n"+
+		"  you can start it manually: smartshd (or smartshd.exe on Windows)",
+		len(candidates), lastStartErr, logPath)
+	return fmt.Errorf(hint)
 }
 
 func detectRootDir() string {
