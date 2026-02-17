@@ -88,8 +88,8 @@ func TestCallSmartshRunReturnsCompletedJob(t *testing.T) {
 	if response.Status != "completed" || response.ExitCode != 0 {
 		t.Fatalf("expected completed response with zero exit code, got status=%q exit=%d", response.Status, response.ExitCode)
 	}
-	if runRequestBody["async"] != true {
-		t.Fatalf("expected async run request")
+	if runRequestBody["async"] != false {
+		t.Fatalf("expected synchronous run request by default")
 	}
 	if runRequestBody["open_external_terminal"] != false {
 		t.Fatalf("expected open_external_terminal=false by default in MCP mode")
@@ -99,6 +99,45 @@ func TestCallSmartshRunReturnsCompletedJob(t *testing.T) {
 	}
 	if runRequestBody["allowlist_mode"] != "warn" {
 		t.Fatalf("expected default allowlist_mode warn, got %v", runRequestBody["allowlist_mode"])
+	}
+}
+
+func TestCallSmartshRunRespectsExplicitAsyncArgument(t *testing.T) {
+	var runRequestBody map[string]interface{}
+	mockDaemon := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write([]byte(`{"ok":true}`))
+		case "/run":
+			_ = json.NewDecoder(request.Body).Decode(&runRequestBody)
+			_ = json.NewEncoder(writer).Encode(map[string]any{
+				"must_use_smartsh": true,
+				"status":           "completed",
+				"executed":         true,
+				"exit_code":        0,
+				"summary":          "ok",
+			})
+		default:
+			http.NotFound(writer, request)
+		}
+	}))
+	defer mockDaemon.Close()
+
+	server := &mcpServer{
+		httpClient: &http.Client{Timeout: 5 * time.Second},
+		daemonURL:  mockDaemon.URL,
+	}
+	_, err := server.callSmartshRun(map[string]interface{}{
+		"command": "go test ./...",
+		"cwd":     "/Applications/smartsh",
+		"async":   true,
+	})
+	if err != nil {
+		t.Fatalf("callSmartshRun returned error: %v", err)
+	}
+	if runRequestBody["async"] != true {
+		t.Fatalf("expected explicit async run request")
 	}
 }
 

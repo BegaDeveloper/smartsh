@@ -188,6 +188,7 @@ func (server *mcpServer) handleRequest(request rpcRequest) rpcResponse {
 						"type": "object",
 						"properties": map[string]interface{}{
 							"command":                map[string]string{"type": "string"},
+							"async":                  map[string]string{"type": "boolean"},
 							"cwd":                    map[string]string{"type": "string"},
 							"dry_run":                map[string]string{"type": "boolean"},
 							"unsafe":                 map[string]string{"type": "boolean"},
@@ -270,13 +271,14 @@ func (server *mcpServer) callSmartshRun(arguments map[string]interface{}) (daemo
 		return handledResponse, handleError
 	}
 
-	requestBody := map[string]interface{}{
-		"async": true,
-	}
-	for _, key := range []string{"command", "cwd", "dry_run", "unsafe", "require_approval", "allowlist_mode", "allowlist_file", "open_external_terminal", "terminal_app", "terminal_session_key"} {
+	requestBody := map[string]interface{}{}
+	for _, key := range []string{"command", "async", "cwd", "dry_run", "unsafe", "require_approval", "allowlist_mode", "allowlist_file", "open_external_terminal", "terminal_app", "terminal_session_key"} {
 		if value, exists := arguments[key]; exists {
 			requestBody[key] = value
 		}
+	}
+	if _, exists := requestBody["async"]; !exists {
+		requestBody["async"] = mcpAsyncEnabled()
 	}
 	if _, exists := requestBody["allowlist_mode"]; !exists {
 		requestBody["allowlist_mode"] = mcpDefaultAllowlistMode()
@@ -940,5 +942,20 @@ func mcpDefaultAllowlistMode() string {
 		return mode
 	default:
 		return "warn"
+	}
+}
+
+func mcpAsyncEnabled() bool {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_MCP_ASYNC")))
+	if raw == "" {
+		raw = strings.ToLower(strings.TrimSpace(os.Getenv("SMARTSH_ASYNC")))
+	}
+	switch raw {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off", "":
+		return false
+	default:
+		return false
 	}
 }
