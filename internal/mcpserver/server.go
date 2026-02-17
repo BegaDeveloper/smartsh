@@ -527,8 +527,12 @@ func (server *mcpServer) ensureDaemon() error {
 	if server.isDaemonHealthy() {
 		return nil
 	}
-	if _, err := exec.LookPath("smartshd"); err == nil {
-		if startErr := startDetachedProcess(exec.Command("smartshd")); startErr == nil && server.waitDaemonHealthy(8*time.Second) {
+	for _, command := range daemonStartCandidates() {
+		command.Env = append(os.Environ(),
+			"SMARTSH_DAEMON_TOKEN="+server.daemonToken,
+			"SMARTSH_DAEMON_DISABLE_AUTH=false",
+		)
+		if startErr := startDetachedProcess(command); startErr == nil && server.waitDaemonHealthy(12*time.Second) {
 			return nil
 		}
 	}
@@ -541,6 +545,10 @@ func (server *mcpServer) ensureDaemon() error {
 	}
 	command := exec.Command("go", "run", filepath.Join(rootDir, "cmd/smartshd"))
 	command.Dir = rootDir
+	command.Env = append(os.Environ(),
+		"SMARTSH_DAEMON_TOKEN="+server.daemonToken,
+		"SMARTSH_DAEMON_DISABLE_AUTH=false",
+	)
 	if err := startDetachedProcess(command); err != nil {
 		return fmt.Errorf("failed to start smartshd: %w", err)
 	}
@@ -645,6 +653,25 @@ func startDetachedProcess(command *exec.Cmd) error {
 		return command.Start()
 	}
 	return command.Start()
+}
+
+func daemonStartCandidates() []*exec.Cmd {
+	candidates := make([]*exec.Cmd, 0, 3)
+	if executablePath, err := os.Executable(); err == nil {
+		executableDir := filepath.Dir(executablePath)
+		daemonName := "smartshd"
+		if runtime.GOOS == "windows" {
+			daemonName = "smartshd.exe"
+		}
+		daemonPath := filepath.Join(executableDir, daemonName)
+		if info, statErr := os.Stat(daemonPath); statErr == nil && !info.IsDir() {
+			candidates = append(candidates, exec.Command(daemonPath))
+		}
+	}
+	if daemonBinaryPath, err := exec.LookPath("smartshd"); err == nil {
+		candidates = append(candidates, exec.Command(daemonBinaryPath))
+	}
+	return candidates
 }
 
 func readRPCMessage(reader *bufio.Reader) ([]byte, bool, error) {
