@@ -104,7 +104,7 @@ func Run() error {
 		writer:      bufio.NewWriter(os.Stdout),
 		httpClient:  &http.Client{Timeout: 30 * time.Second},
 		daemonURL:   daemonURLFromEnv(),
-		daemonToken: runtimeconfig.ResolveString("SMARTSH_DAEMON_TOKEN", configValues),
+		daemonToken: resolveDaemonToken(configValues),
 	}
 	return server.loop()
 }
@@ -596,6 +596,16 @@ func daemonURLFromEnv() string {
 		return "http://127.0.0.1:8787"
 	}
 	return url
+}
+
+func resolveDaemonToken(configValues map[string]string) string {
+	// Prefer ~/.smartsh/config to avoid stale per-project MCP env tokens.
+	if configValues != nil {
+		if token := strings.TrimSpace(configValues["SMARTSH_DAEMON_TOKEN"]); token != "" {
+			return token
+		}
+	}
+	return strings.TrimSpace(os.Getenv("SMARTSH_DAEMON_TOKEN"))
 }
 
 func detectRootDir() string {

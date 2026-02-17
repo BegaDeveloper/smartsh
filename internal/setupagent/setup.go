@@ -44,8 +44,12 @@ func Run(out io.Writer) error {
 	}
 
 	ollamaURL, ollamaModel := resolveOllamaSettings(config.Values)
+	ollamaRequired := "true"
 	if err := ensureOllamaReady(ollamaURL, ollamaModel); err != nil {
-		return err
+		ollamaRequired = "false"
+		fmt.Fprintf(out, "[WARN] Ollama preflight failed: %v\n", err)
+		fmt.Fprintln(out, "       Continuing setup with deterministic summaries until Ollama becomes available.")
+		fmt.Fprintln(out, "")
 	}
 
 	// Resolve smartsh binary path for MCP command field.
@@ -56,7 +60,7 @@ func Run(out io.Writer) error {
 		"SMARTSH_DAEMON_URL":       daemonURL,
 		"SMARTSH_DAEMON_TOKEN":     daemonToken,
 		"SMARTSH_SUMMARY_PROVIDER": "ollama",
-		"SMARTSH_OLLAMA_REQUIRED":  "true",
+		"SMARTSH_OLLAMA_REQUIRED":  ollamaRequired,
 		"SMARTSH_OLLAMA_URL":       ollamaURL,
 		"SMARTSH_OLLAMA_MODEL":     ollamaModel,
 	}
@@ -132,11 +136,17 @@ func resolveSmartshBinary() string {
 		}
 		candidate := filepath.Join(executableDir, smartshName)
 		if info, statErr := os.Stat(candidate); statErr == nil && !info.IsDir() {
+			if absolutePath, absErr := filepath.Abs(candidate); absErr == nil {
+				return absolutePath
+			}
 			return candidate
 		}
 	}
 	// 2) Try PATH.
 	if found, err := exec.LookPath("smartsh"); err == nil {
+		if absolutePath, absErr := filepath.Abs(found); absErr == nil {
+			return absolutePath
+		}
 		return found
 	}
 	// 3) Fallback to bare name.

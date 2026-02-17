@@ -9,6 +9,17 @@ import (
 	"time"
 )
 
+func TestResolveDaemonTokenPrefersConfig(t *testing.T) {
+	t.Setenv("SMARTSH_DAEMON_TOKEN", "env-token")
+	configValues := map[string]string{
+		"SMARTSH_DAEMON_TOKEN": "config-token",
+	}
+	resolved := resolveDaemonToken(configValues)
+	if resolved != "config-token" {
+		t.Fatalf("expected config token, got %q", resolved)
+	}
+}
+
 func TestToolsListIncludesMCPMaxWaitSec(t *testing.T) {
 	server := &mcpServer{}
 	response := server.handleRequest(rpcRequest{

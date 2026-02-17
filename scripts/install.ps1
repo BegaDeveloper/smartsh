@@ -76,4 +76,19 @@ if ($env:Path -notlike "*$InstallDir*") {
 }
 
 Write-Host "Added $InstallDir to PATH (user + current session)."
-Write-Host "Try: smartsh setup-agent"
+$SmartshBin = Join-Path $InstallDir "smartsh.exe"
+if (Test-Path $SmartshBin) {
+    Write-Host "Running one-time setup: smartsh setup-agent"
+    try {
+        & $SmartshBin setup-agent
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "setup-agent failed during installer run (exit code: $LASTEXITCODE)."
+            Write-Host "You can retry later with: smartsh setup-agent"
+        } else {
+            Write-Host "setup-agent completed."
+        }
+    } catch {
+        Write-Warning "setup-agent failed during installer run: $($_.Exception.Message)"
+        Write-Host "You can retry later with: smartsh setup-agent"
+    }
+}

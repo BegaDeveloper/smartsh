@@ -63,15 +63,12 @@ ollama pull llama3.2:3b
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.sh | sh
-smartsh setup-agent
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -useb https://raw.githubusercontent.com/BegaDeveloper/smartsh/main/scripts/install.ps1 | iex"
-$s = Join-Path $env:LOCALAPPDATA "Programs\smartsh\smartsh.exe"
-& $s setup-agent
 ```
 
 **Install via Go:**
@@ -82,7 +79,7 @@ go install github.com/BegaDeveloper/smartsh/cmd/smartshd@latest
 smartsh setup-agent
 ```
 
-After `setup-agent` completes, you get these files in `~/.smartsh/`:
+The installer runs `setup-agent` automatically. After setup completes, you get these files in `~/.smartsh/`:
 
 | File | Use with |
 |---|---|
@@ -130,11 +127,13 @@ smartsh doctor
 
 If you prefer to set up manually, here's what the generated `cursor-mcp.json` / `claude-code-mcp.json` looks like:
 
+> If you are writing JSON manually, use your own absolute `smartsh` binary path for `command` (it differs per user and OS).
+
 ```json
 {
   "mcpServers": {
     "smartsh": {
-      "command": "smartsh",
+      "command": "/ABSOLUTE/PATH/TO/smartsh",
       "args": ["mcp"],
       "env": {
         "SMARTSH_DAEMON_URL": "http://127.0.0.1:8787",

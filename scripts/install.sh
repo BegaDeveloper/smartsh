@@ -107,3 +107,14 @@ echo "Location:  $INSTALL_DIR"
 if [ "$INSTALL_DIR" = "$HOME/.local/bin" ] || [ "$INSTALL_DIR" = "$HOME/bin" ]; then
   echo "Tip: ensure your PATH includes $INSTALL_DIR"
 fi
+
+SMARTSH_BIN="${INSTALL_DIR}/smartsh"
+if [ -x "$SMARTSH_BIN" ]; then
+  echo "Running one-time setup: smartsh setup-agent"
+  if "$SMARTSH_BIN" setup-agent; then
+    echo "setup-agent completed."
+  else
+    echo "WARN: setup-agent failed during installer run." >&2
+    echo "      You can retry later with: smartsh setup-agent" >&2
+  fi
+fi
